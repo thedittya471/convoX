@@ -1,0 +1,26 @@
+name: Checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.28.6
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: docker compose --profile stack config --quiet
+      - run: pnpm stack:up
+      - run: pnpm test:smoke
+      - if: failure()
+        run: docker compose --profile stack logs --tail=100
+      - if: always()
+        run: docker compose --profile stack down

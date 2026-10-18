@@ -1,0 +1,73 @@
+x-server: &server
+  image: convox-server:local
+  build:
+    context: .
+    target: server
+  profiles: [stack]
+  init: true
+  stop_grace_period: 10s
+  environment: &server-env
+    PORT: 4000
+    DATABASE_URL: postgresql://convox:convox_dev@postgres:5432/convox
+  depends_on:
+    postgres:
+      condition: service_healthy
+  healthcheck:
+    test: [CMD, node, -e, "fetch('http://127.0.0.1:4000/api/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+    interval: 5s
+    timeout: 3s
+    retries: 5
+
+services:
+  postgres:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_USER: convox
+      POSTGRES_PASSWORD: convox_dev
+      POSTGRES_DB: convox
+    ports: ["127.0.0.1:${POSTGRES_PORT:-55432}:5432"]
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U convox -d convox"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  server-1:
+    <<: *server
+    environment:
+      <<: *server-env
+      INSTANCE_ID: server-1
+  server-2:
+    <<: *server
+    environment:
+      <<: *server-env
+      INSTANCE_ID: server-2
+  server-3:
+    <<: *server
+    environment:
+      <<: *server-env
+      INSTANCE_ID: server-3
+  web:
+    image: convox-web:local
+    build:
+      context: .
+      target: web
+    profiles: [stack]
+    init: true
+  nginx:
+    image: nginx:1.28-bookworm
+    profiles: [stack]
+    ports: ["127.0.0.1:8080:80"]
+    volumes: [./infra/nginx.conf:/etc/nginx/conf.d/default.conf:ro]
+    depends_on:
+      server-1:
+        condition: service_healthy
+      server-2:
+        condition: service_healthy
+      server-3:
+        condition: service_healthy
+      web:
+        condition: service_started
+
+volumes:
+  postgres-data:

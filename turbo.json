@@ -1,0 +1,37 @@
+{
+    "$schema": "https://turborepo.com/schema.json",
+    "tasks": {
+        "build": {
+            "env": ["API_URL"],
+            "inputs": ["$TURBO_DEFAULT$", ".env*"],
+            "dependsOn": [
+                "^build"
+            ],
+            "outputs": [
+                "dist/**",
+                ".next/**",
+                "!.next/cache/**"
+            ]
+        },
+        "dev": {
+            "passThroughEnv": ["PORT", "INSTANCE_ID", "DATABASE_URL", "API_URL"],
+            "cache": false,
+            "persistent": true
+        },
+        "typecheck": {
+            "dependsOn": [
+                "^build"
+            ],
+            "outputs": []
+        },
+        "lint": {
+            "outputs": []
+        },
+        "test": {
+            "dependsOn": [
+                "^build"
+            ],
+            "outputs": []
+        }
+    }
+}

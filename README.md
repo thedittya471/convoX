@@ -6,7 +6,7 @@ convoX focuses on reliable delivery across instances, shared presence and typing
 
 ## Project status
 
-The repository currently contains the product requirements and documentation files. Application code, infrastructure configuration, and test tooling are not implemented yet. The capabilities and performance figures below describe the release requirements, not verified results.
+The development foundation is implemented: a Next.js frontend, a Node.js/Express backend, Drizzle/PostgreSQL configuration, compiled shared contracts, checks, and a local three-instance Docker stack. Chat features and real-time routing are not implemented. The capabilities and performance figures below remain release requirements, not verified results.
 
 ## Release scope
 
@@ -44,7 +44,89 @@ Delivery latency is measured from the sender initiating a send to the connected 
 
 ## Running and deployment
 
-There is no runnable application or deployment configuration in this repository yet. Installation, environment variables, local execution, three-instance deployment, and test commands will be documented alongside their implementation.
+### Prerequisites
+
+- Node.js 24 LTS (`nvm install && nvm use` if using nvm).
+- pnpm 11.28.6, matching the root package manager pin.
+- Docker with Compose v2 and a running Docker engine.
+
+### Local development
+
+Run from the repository root:
+
+```bash
+pnpm install --frozen-lockfile
+cp apps/server/.env.example apps/server/.env
+cp apps/web/.env.example apps/web/.env.local
+pnpm infra:up
+pnpm dev
+```
+
+Copy environment examples only on first setup; preserve any existing local configuration. Open http://localhost:3000. Backend health is available at http://localhost:4000/api/health/live and `/api/health/ready`, also accessible through the frontend's `/api` rewrite. Readiness returns 503 when the database is unavailable. The server validates configuration and checks the database before listening.
+
+PostgreSQL binds to localhost:55432 to avoid colliding with existing local services. Override this with `POSTGRES_PORT` when invoking Compose, and update the server's local connection URL to match. Containers use PostgreSQL's standard internal port.
+
+`pnpm dev` builds contracts first, then starts the contracts compiler watcher, Next.js, and the backend watcher. Stop the watchers with Ctrl+C. `pnpm infra:down` stops containers without deleting the PostgreSQL volume.
+
+### Workspace boundaries
+
+| Package | Purpose |
+| --- | --- |
+| `apps/web` / `@convox/web` | Next.js App Router UI; no direct database access. |
+| `apps/server` / `@convox/server` | Express APIs and PostgreSQL access. `app.ts` exports the configured app; `index.ts` owns HTTP startup and graceful shutdown. |
+| `packages/contracts` / `@convox/contracts` | Public schemas and types compiled to JavaScript and declarations. |
+
+TypeScript 5.9.3 is shared across packages. Turbo orders builds through declared workspace dependencies. Build artifacts, environment secrets and dependencies are ignored; lockfiles and future database migrations must be committed.
+
+### Environment
+
+Server `.env` is loaded by the development command; containers receive variables from Compose. Never commit real secrets.
+
+| Variable | Purpose |
+| --- | --- |
+| `PORT` | Backend HTTP port; 4000 by default. |
+| `INSTANCE_ID` | Unique backend identity for health responses and logs. |
+| `DATABASE_URL` | PostgreSQL connection string. Each backend pool is capped at 10 connections. |
+| `API_URL` | Next.js HTTP rewrite target, evaluated at build/configuration time. Defaults to the local backend; NGINX handles API routing in the Docker stack. |
+
+### Database workflow
+
+`apps/server/src/db/schema.ts` is intentionally empty. Add actual domain tables when their contracts are decided; no dummy application tables or migrations are created for setup.
+
+After defining or changing tables:
+
+```bash
+pnpm db:generate
+pnpm db:migrate
+```
+
+Review generated SQL in `apps/server/drizzle/`. Run migrations once per deployment, never automatically from each replica. `pnpm --filter @convox/server db:studio` opens the local database browser. Database commands load the server's `.env` and require a valid database URL. Do not use schema push as a replacement for reviewed release migrations.
+
+### Checks
+
+```bash
+pnpm check
+```
+
+This builds all packages, checks types, lints each package, and runs the shared health-contract test. Server unit tests are not included. The Docker smoke check verifies runtime health across all three backend instances and graceful shutdown/restart. CI runs these checks on Node 24.
+
+### Three-instance local stack
+
+```bash
+pnpm stack:up
+pnpm test:smoke
+pnpm stack:down
+```
+
+Open http://localhost:8080. Compose runs PostgreSQL, one Next.js service, three identical backend containers with distinct instance IDs, and NGINX. Only the gateway exposes the application; the database port binds to localhost for development. Health responses show which backend served a request. NGINX uses passive backend failure detection and Docker DNS to discover restarted containers.
+
+The smoke check confirms the frontend and all three backend identities through the gateway, including database readiness, then stops one backend, checks its clean exit, and restarts it. Run it against this local Compose stack from the repository root. This is a setup check, not a messaging, load or recovery qualification. Inspect logs using `docker compose --profile stack logs --tail=100`. For a process-failure exercise, `docker compose kill server-1`, inspect the remaining health responses, then restore it using `docker compose --profile stack up -d server-1`.
+
+Compose uses fixed development credentials and plaintext localhost HTTP. It is not a public production deployment. Before public deployment, configure TLS, real credentials, authentication, authorization, application limits, monitoring and backup/restore procedures. Docker images currently retain development tooling for this foundation; trim the runtime images when preparing deployment. `docker compose down` preserves database data; adding `-v` deletes it.
+
+### Next implementation steps
+
+Resolve authentication/participant lookup and retention/recovery policy first. Then implement authorized conversations, durable messages and idempotency, followed by reconnect synchronization, presence, typing, metrics and release qualification. Do not enable chat socket connections before authentication and authorization exist.
 
 ## Documentation
 

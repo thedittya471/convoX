@@ -1,0 +1,16 @@
+{
+  "name": "@convox/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "tsx --test src/*.test.ts"
+  },
+  "dependencies": { "zod": "^4.6.7" },
+  "devDependencies": { "typescript": "5.9.3", "tsx": "^4.23.15", "@types/node": "^24", "eslint": "^9", "typescript-eslint": "^8" }
+}
