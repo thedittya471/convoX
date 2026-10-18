@@ -8,6 +8,13 @@
       "when": 1792354474810,
       "tag": "0000_perpetual_micromax",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792356562892,
+      "tag": "0001_cultured_living_lightning",
+      "breakpoints": true
     }
   ]
 }

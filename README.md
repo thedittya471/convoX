@@ -117,7 +117,7 @@ Review generated SQL in `apps/server/drizzle/`. Run migrations once per deployme
 pnpm check
 ```
 
-This builds all packages, checks types, lints each package, and runs the shared health-contract test. Server unit tests are not included. The Docker smoke check verifies runtime health across all three backend instances and graceful shutdown/restart. CI runs these checks on Node 24.
+This builds all packages, checks types, lints each package, and runs the shared health/username contract tests. Server unit tests are not included. The Docker smoke check verifies runtime health across all three backend instances and graceful shutdown/restart. CI runs these checks on Node 24.
 
 ### Authentication
 
@@ -125,7 +125,7 @@ Express owns Better Auth at `/api/auth/*`. Its handler is mounted before the JSO
 
 | Operation | HTTP endpoint |
 | --- | --- |
-| Register | `POST /api/auth/sign-up/email` with name, email and password |
+| Register | `POST /api/auth/sign-up/email` with name, email and password; optional username via API |
 | Log in | `POST /api/auth/sign-in/email` with email and password |
 | Read current session | `GET /api/auth/get-session` |
 | Log out | `POST /api/auth/sign-out` |
@@ -151,6 +151,18 @@ Email verification and password-reset delivery require an email provider and rem
 
 Runtime dependency audit currently reports a moderate advisory in a transitive esbuild version used by Drizzle tooling (`GHSA-67mh-4wv8-2f99`). The affected esbuild development-server feature is not used by these application routes. No forced dependency override was applied; reassess when upgrading Better Auth/Drizzle tooling and before release.
 
+### User discovery
+
+Server flow: `routes/users.ts` maps the endpoint, `controllers/users.controller.ts` handles authentication/validation and HTTP responses, and `services/users.service.ts` owns lookup queries and rate-limit logic. The service uses Drizzle's insert/upsert/returning APIs. Its small `sql` expressions keep the counter increment and window reset inside one atomic PostgreSQL statement, preventing concurrent requests on different instances from bypassing the limit. There is no separate repository layer or generic controller framework.
+
+Apply the additive username migration with `pnpm db:migrate` before starting the updated application. Existing accounts are preserved with a nullable username. User discovery is backend-only for now: the signup username field, username setup form and search UI have been removed. Better Auth's server-side username plugin still accepts optional usernames during API signup or authenticated `POST /api/auth/update-user` requests. It validates usernames and normalizes them to lowercase; PostgreSQL enforces uniqueness. Usernames are 3–30 ASCII letters, numbers, underscores or dots. Display names are not unique and are not search keys. Username availability and username/password login endpoints are disabled; email/password login is unchanged. Callers should keep the returned user ID as the stable identity, not the username.
+
+`GET /api/users/lookup?username=alice` requires a valid session, matches a complete username case-insensitively, excludes the caller, and returns only `{ "user": { "id": "…", "username": "alice", "name": "Alice" } }`. It never returns email, session tokens, or a directory listing. Responses use `Cache-Control: no-store`. Status codes: 400 invalid input, 401 missing/expired session, 404 no other matching user, 429 rate limited (with `Retry-After`), 503 temporarily unavailable. The limit is 30 lookups per account per 60-second fixed window, shared across instances through the existing PostgreSQL rate-limit table; invalid authenticated attempts also count.
+
+Only accounts that choose a username through the API are discoverable. The backend does not create conversations or send messages; the found user ID is ready for the next conversation feature. Authenticated discovery intentionally reveals the display name associated with a known username. Rate limits reduce enumeration but do not make public usernames secret or prevent abuse through many accounts; verified signup and abuse controls remain launch requirements.
+
+Use `pnpm test:auth` to verify backend discovery and username handling; there is currently no browser discovery flow.
+
 ### Three-instance local stack
 
 ```bash
@@ -165,13 +177,13 @@ Open http://localhost:8080. Compose runs PostgreSQL, one Next.js service, three 
 
 The smoke check confirms the frontend and all three backend identities through the gateway, including database readiness, then stops one backend, checks its clean exit, and restarts it. Run it against this local Compose stack from the repository root. This is a setup check, not a messaging, load or recovery qualification. Inspect logs using `docker compose --profile stack logs --tail=100`. For a process-failure exercise, `docker compose kill server-1`, inspect the remaining health responses, then restore it using `docker compose --profile stack up -d server-1`.
 
-`pnpm test:auth` runs inside the Compose network and calls each backend directly. It checks origin rejection, password validation/hashing, registration/login, shared sessions, cross-instance logout, expiration and shared rate limits. It creates a uniquely named synthetic account and deletes it afterward. CI creates an ephemeral secret, applies migrations once, and runs both integration checks.
+`pnpm test:auth` runs inside the Compose network and calls each backend directly. It checks origin rejection, password validation/hashing, registration/login, shared sessions, cross-instance logout, expiration, username validation/normalization/duplicate and concurrent claims, discovery privacy and exact matches, and shared rate limits/reset. It creates synthetic accounts and removes them and their discovery rate-limit records afterward. CI creates an ephemeral secret, applies migrations once, and runs both integration checks.
 
 Compose uses fixed development credentials and plaintext localhost HTTP. It is not a public production deployment. Before public deployment, configure TLS, real credentials, authentication, authorization, application limits, monitoring and backup/restore procedures. Docker images currently retain development tooling for this foundation; trim the runtime images when preparing deployment. `docker compose down` preserves database data; adding `-v` deletes it.
 
 ### Next implementation steps
 
-Resolve authentication/participant lookup and retention/recovery policy first. Then implement authorized conversations, durable messages and idempotency, followed by reconnect synchronization, presence, typing, metrics and release qualification. Do not enable chat socket connections before authentication and authorization exist.
+Next implement authorized one-to-one conversations using the stable user IDs returned by discovery. Settle retention/recovery policy before durable messages and idempotency, followed by reconnect synchronization, presence, typing, metrics and release qualification. Do not enable chat socket connections before conversation authorization exists.
 
 ## Documentation
 

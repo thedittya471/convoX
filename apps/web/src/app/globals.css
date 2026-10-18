@@ -24,7 +24,11 @@ body {
 
 .auth-shell {
   display: grid;
-  flex: 1;
+  grid-template-rows: minmax(0, 1fr);
+  flex: none;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
   place-items: center;
   padding: 2rem 1rem;
 }
@@ -32,6 +36,8 @@ body {
 .auth-card {
   width: 100%;
   max-width: 28rem;
+  max-height: 100%;
+  overflow-y: auto;
   padding: 2rem;
   border: 1px solid var(--border);
   border-radius: 0.75rem;
@@ -148,6 +154,7 @@ input:disabled {
   line-height: 1.5;
 }
 .account-notice {
+  overflow-wrap: anywhere;
   margin-top: 1.5rem;
   border-block: 1px solid var(--border);
   padding-block: 1.5rem;

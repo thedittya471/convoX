@@ -4,11 +4,13 @@ import type { HealthResponse } from "@convox/contracts";
 import { config } from "./utils/config.js";
 import { pool } from "./db/client.js";
 import { auth } from "./utils/auth.js";
+import { usersRouter } from "./routes/users.js";
 
 const app = express();
 app.disable("x-powered-by");
 app.all("/api/auth/*splat", toNodeHandler(auth));
 app.use(express.json({ limit: "16kb" }));
+app.use("/api/users", usersRouter);
 
 app.get("/api/health/live", (_request, response) => {
   response.set("Cache-Control", "no-store").json({
