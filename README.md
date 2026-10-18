@@ -6,7 +6,7 @@ convoX focuses on reliable delivery across instances, shared presence and typing
 
 ## Project status
 
-The development foundation includes Next.js, Express, Better Auth email/password authentication with PostgreSQL-backed sessions, Drizzle migrations, shared contracts, checks, and a local three-instance Docker stack. Login screens, chat features and real-time routing are not implemented. Email verification and password-reset delivery are not configured. The capabilities and performance figures below remain release requirements, not verified results.
+The development foundation includes Next.js, Express, Better Auth email/password authentication with PostgreSQL-backed sessions, signup/login screens, Drizzle migrations, shared contracts, checks, and a local three-instance Docker stack. Chat features and real-time routing are not implemented. Email verification and password-reset delivery are not configured. The capabilities and performance figures below remain release requirements, not verified results.
 
 ## Release scope
 
@@ -130,7 +130,18 @@ Express owns Better Auth at `/api/auth/*`. Its handler is mounted before the JSO
 | Read current session | `GET /api/auth/get-session` |
 | Log out | `POST /api/auth/sign-out` |
 
-In a Client Component, import `authClient` from `@/lib/auth-client`. Use `authClient.signUp.email({ name, email, password })`, `authClient.signIn.email({ email, password })`, `authClient.useSession()` and `authClient.signOut()`. Handle returned errors in the UI. Authentication forms are the next feature, not included in this integration.
+In a Client Component, import `authClient` from `@/lib/auth-client`. Use `authClient.signUp.email({ name, email, password })`, `authClient.signIn.email({ email, password })`, `authClient.useSession()` and `authClient.signOut()`.
+
+Visit `/signup` to create an account or `/login` to sign in. Both use the shared form in `apps/web/src/components/auth-form.tsx`, with native required/email/password validation, loading states and generic auth errors. Successful authentication opens `/`, which shows the current account and a sign-out button. Anonymous or expired sessions redirect to `/login`; session lookup failures show a retry action rather than pretending the user is logged out. These client redirects are UX only, not an authorization boundary: future business endpoints must authenticate independently.
+
+Browser check: open `/` signed out and expect `/login`; follow Create an account, check required fields and a short password, then register a unique test account. Confirm the account screen survives refresh, sign out, check an incorrect login error, and sign in again. While signed in, visiting `/login` or `/signup` should return to `/`. In another tab, sign out and focus the first tab to confirm its session refreshes. With the backend unavailable, session checks must show a retry action and form submissions must fail without navigating away.
+
+The auth screens use a responsive split layout inspired by the supplied reference. Below 768px the decorative panel is hidden to keep the form usable. Password visibility is keyboard-accessible; Google sign-in and password-reset links are deliberately absent until those flows exist. The generated artwork is reused for both backgrounds as `apps/web/public/images/auth-ribbons.webp` (approximately 96 KB), converted from the built-in image generator's PNG with the already-installed Sharp library. No image-generation service runs in the app.
+
+The auth layout fills the dynamic viewport without document scrolling. Short windows allow scrolling inside the form panel instead of clipping controls. Check both auth routes at desktop, narrow, and short viewport sizes; the document must not overflow, and all form controls must remain reachable.
+
+Artwork generation prompt (built-in tool):
+> Use case: stylized-concept. Generate a premium abstract artwork asset for the convoX authentication website, NOT a screenshot or UI mockup. Portrait 2:3 composition. On a deep pure black background, sweeping sculptural silky glass light ribbons, flowing diagonally from upper left across the middle toward right, hot magenta and vivid fuchsia pink dominant at the top and center, electric cobalt blue and cyan curves underneath, and thin violet illuminated strands near bottom. Smooth elegant fluid folds and sharp fine glossy edges, high contrast luminous studio rendering. Large dark negative space in lower left and near top left so white HTML text can be overlaid later. Rich black shadows. Edge-to-edge artwork, no border. NO text, NO letters, NO logo, NO people, NO user interface, NO watermark. This is one reusable decorative background for the split-screen login page and outer page backdrop.
 
 Passwords must contain 12–128 characters and Better Auth handles hashing. Sessions expire after seven days, with daily renewal during activity. Cookies are HttpOnly and SameSite=Lax; Secure cookies are enabled for HTTPS origins. Cookie session caching is disabled, so revocations are checked against shared PostgreSQL on every session lookup. New protected backend routes must use `auth.api.getSession` with the incoming headers and separately enforce resource authorization.
 

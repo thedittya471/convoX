@@ -15,6 +15,14 @@ for (let attempt = 0; attempt < 20; attempt += 1) {
   await setTimeout(500);
 }
 assert.ok(frontendReady, "Next.js must respond successfully through NGINX");
+const artwork = await fetch(`${baseUrl}/images/auth-ribbons.webp`, { signal: AbortSignal.timeout(5000) });
+assert.equal(artwork.status, 200, "auth artwork must be served through NGINX");
+assert.match(artwork.headers.get("content-type") ?? "", /image\/webp/);
+for (const [path, heading] of [["/login", "Welcome back"], ["/signup", "Create your account"]]) {
+  const response = await fetch(`${baseUrl}${path}`, { signal: AbortSignal.timeout(5000) });
+  assert.equal(response.status, 200, `${path} must be available through NGINX`);
+  assert.ok((await response.text()).includes(heading), `${path} must render its auth heading`);
+}
 const instances = new Set();
 for (let attempt = 0; attempt < 12; attempt += 1) {
   const response = await fetch(`${baseUrl}/api/health/ready`, { signal: AbortSignal.timeout(3000) });
@@ -33,4 +41,4 @@ try {
 } finally {
   await execute("docker", ["compose", "--profile", "stack", "up", "-d", "--wait", "--wait-timeout", "30", "server-1"], { timeout: 40000 });
 }
-console.log("Smoke check passed: frontend, PostgreSQL readiness, three backend instances, and graceful shutdown/restart.");
+console.log("Smoke check passed: frontend auth routes, PostgreSQL readiness, three backend instances, and graceful shutdown/restart.");
