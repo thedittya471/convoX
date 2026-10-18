@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import app from "./app.js";
-import { config } from "./config.js";
+import { config } from "./utils/config.js";
 import { pool } from "./db/client.js";
 
 const server = createServer(app);

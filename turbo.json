@@ -14,7 +14,7 @@
             ]
         },
         "dev": {
-            "passThroughEnv": ["PORT", "INSTANCE_ID", "DATABASE_URL", "API_URL"],
+            "passThroughEnv": ["PORT", "INSTANCE_ID", "DATABASE_URL", "API_URL", "BETTER_AUTH_URL", "BETTER_AUTH_SECRET"],
             "cache": false,
             "persistent": true
         },

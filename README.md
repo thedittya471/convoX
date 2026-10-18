@@ -6,7 +6,7 @@ convoX focuses on reliable delivery across instances, shared presence and typing
 
 ## Project status
 
-The development foundation is implemented: a Next.js frontend, a Node.js/Express backend, Drizzle/PostgreSQL configuration, compiled shared contracts, checks, and a local three-instance Docker stack. Chat features and real-time routing are not implemented. The capabilities and performance figures below remain release requirements, not verified results.
+The development foundation includes Next.js, Express, Better Auth email/password authentication with PostgreSQL-backed sessions, Drizzle migrations, shared contracts, checks, and a local three-instance Docker stack. Login screens, chat features and real-time routing are not implemented. Email verification and password-reset delivery are not configured. The capabilities and performance figures below remain release requirements, not verified results.
 
 ## Release scope
 
@@ -58,7 +58,14 @@ Run from the repository root:
 pnpm install --frozen-lockfile
 cp apps/server/.env.example apps/server/.env
 cp apps/web/.env.example apps/web/.env.local
+cp .env.example .env
 pnpm infra:up
+```
+
+Generate a secret with `openssl rand -base64 32`. Set the same value as `BETTER_AUTH_SECRET` in the root `.env` and `apps/server/.env` without committing either file. Then run:
+
+```bash
+pnpm db:migrate
 pnpm dev
 ```
 
@@ -87,11 +94,13 @@ Server `.env` is loaded by the development command; containers receive variables
 | `PORT` | Backend HTTP port; 4000 by default. |
 | `INSTANCE_ID` | Unique backend identity for health responses and logs. |
 | `DATABASE_URL` | PostgreSQL connection string. Each backend pool is capped at 10 connections. |
+| `BETTER_AUTH_SECRET` | Random secret of at least 32 characters, identical across replicas. Compose injects root `.env` using `env_file`; server `.env` supplies local development. |
+| `BETTER_AUTH_URL` | Public browser-facing origin: `http://localhost:3000` locally, `http://localhost:8080` in Compose. Use HTTPS for public deployment. |
 | `API_URL` | Next.js HTTP rewrite target, evaluated at build/configuration time. Defaults to the local backend; NGINX handles API routing in the Docker stack. |
 
 ### Database workflow
 
-`apps/server/src/db/schema.ts` is intentionally empty. Add actual domain tables when their contracts are decided; no dummy application tables or migrations are created for setup.
+`apps/server/src/db/schema/auth.schema.ts` defines Better Auth's user, account, session, verification and shared rate-limit tables. Add future domain schemas as separate `*.schema.ts` files in that folder; Drizzle discovers them through its configured glob. The initial migration is committed under `apps/server/drizzle/`; apply it with `pnpm db:migrate` before using authentication. Domain/chat tables remain unimplemented.
 
 After defining or changing tables:
 
@@ -110,17 +119,42 @@ pnpm check
 
 This builds all packages, checks types, lints each package, and runs the shared health-contract test. Server unit tests are not included. The Docker smoke check verifies runtime health across all three backend instances and graceful shutdown/restart. CI runs these checks on Node 24.
 
+### Authentication
+
+Express owns Better Auth at `/api/auth/*`. Its handler is mounted before the JSON parser. The Next.js client in `apps/web/src/lib/auth-client.ts` calls the same public origin through the existing API proxy; there is no second Next.js auth server and no browser token storage.
+
+| Operation | HTTP endpoint |
+| --- | --- |
+| Register | `POST /api/auth/sign-up/email` with name, email and password |
+| Log in | `POST /api/auth/sign-in/email` with email and password |
+| Read current session | `GET /api/auth/get-session` |
+| Log out | `POST /api/auth/sign-out` |
+
+In a Client Component, import `authClient` from `@/lib/auth-client`. Use `authClient.signUp.email({ name, email, password })`, `authClient.signIn.email({ email, password })`, `authClient.useSession()` and `authClient.signOut()`. Handle returned errors in the UI. Authentication forms are the next feature, not included in this integration.
+
+Passwords must contain 12–128 characters and Better Auth handles hashing. Sessions expire after seven days, with daily renewal during activity. Cookies are HttpOnly and SameSite=Lax; Secure cookies are enabled for HTTPS origins. Cookie session caching is disabled, so revocations are checked against shared PostgreSQL on every session lookup. New protected backend routes must use `auth.api.getSession` with the incoming headers and separately enforce resource authorization.
+
+Auth rate limits are stored in PostgreSQL, shared across replicas: 100 requests/minute generally, with 5 login and 3 signup attempts/minute per client/path. Better Auth reads `X-Real-IP`; NGINX overwrites this header with the connecting address. Keep backend ports private in deployment so clients cannot spoof trusted proxy headers. Local development may use a shared fallback rate-limit bucket when that header is absent.
+
+Email verification and password-reset delivery require an email provider and remain unconfigured. Accounts created now are unverified; do not treat email ownership as proven or expose this development configuration as a finished public auth system. Configure delivery/verification, HTTPS and production secrets before launch.
+
+Runtime dependency audit currently reports a moderate advisory in a transitive esbuild version used by Drizzle tooling (`GHSA-67mh-4wv8-2f99`). The affected esbuild development-server feature is not used by these application routes. No forced dependency override was applied; reassess when upgrading Better Auth/Drizzle tooling and before release.
+
 ### Three-instance local stack
 
 ```bash
 pnpm stack:up
+docker compose exec -T server-1 pnpm --filter @convox/server db:migrate
 pnpm test:smoke
+pnpm test:auth
 pnpm stack:down
 ```
 
 Open http://localhost:8080. Compose runs PostgreSQL, one Next.js service, three identical backend containers with distinct instance IDs, and NGINX. Only the gateway exposes the application; the database port binds to localhost for development. Health responses show which backend served a request. NGINX uses passive backend failure detection and Docker DNS to discover restarted containers.
 
 The smoke check confirms the frontend and all three backend identities through the gateway, including database readiness, then stops one backend, checks its clean exit, and restarts it. Run it against this local Compose stack from the repository root. This is a setup check, not a messaging, load or recovery qualification. Inspect logs using `docker compose --profile stack logs --tail=100`. For a process-failure exercise, `docker compose kill server-1`, inspect the remaining health responses, then restore it using `docker compose --profile stack up -d server-1`.
+
+`pnpm test:auth` runs inside the Compose network and calls each backend directly. It checks origin rejection, password validation/hashing, registration/login, shared sessions, cross-instance logout, expiration and shared rate limits. It creates a uniquely named synthetic account and deletes it afterward. CI creates an ephemeral secret, applies migrations once, and runs both integration checks.
 
 Compose uses fixed development credentials and plaintext localhost HTTP. It is not a public production deployment. Before public deployment, configure TLS, real credentials, authentication, authorization, application limits, monitoring and backup/restore procedures. Docker images currently retain development tooling for this foundation; trim the runtime images when preparing deployment. `docker compose down` preserves database data; adding `-v` deletes it.
 

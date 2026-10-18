@@ -17,9 +17,13 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      - name: Create an ephemeral local auth secret
+        run: node -e 'require("node:fs").writeFileSync(".env", "BETTER_AUTH_URL=http://localhost:8080\nBETTER_AUTH_SECRET=" + require("node:crypto").randomBytes(32).toString("base64") + "\n")'
       - run: docker compose --profile stack config --quiet
       - run: pnpm stack:up
+      - run: docker compose exec -T server-1 pnpm --filter @convox/server db:migrate
       - run: pnpm test:smoke
+      - run: pnpm test:auth
       - if: failure()
         run: docker compose --profile stack logs --tail=100
       - if: always()

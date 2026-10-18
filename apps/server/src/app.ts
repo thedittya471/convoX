@@ -1,10 +1,13 @@
 import express from "express";
+import { toNodeHandler } from "better-auth/node";
 import type { HealthResponse } from "@convox/contracts";
-import { config } from "./config.js";
+import { config } from "./utils/config.js";
 import { pool } from "./db/client.js";
+import { auth } from "./utils/auth.js";
 
 const app = express();
 app.disable("x-powered-by");
+app.all("/api/auth/*splat", toNodeHandler(auth));
 app.use(express.json({ limit: "16kb" }));
 
 app.get("/api/health/live", (_request, response) => {
