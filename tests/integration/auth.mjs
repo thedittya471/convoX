@@ -9,7 +9,6 @@ const targetEmail = `auth-test-${randomUUID()}@example.com`;
 const duplicateEmail = `auth-test-${randomUUID()}@example.com`;
 const targetUsername = `lookup_${randomBytes(8).toString("hex")}`;
 const legacyUsername = `legacy_${randomBytes(8).toString("hex")}`;
-const fixtureIds = [];
 const password = randomBytes(24).toString("base64url");
 const address = `198.18.${randomBytes(1)[0]}.${randomBytes(1)[0]}`;
 
@@ -46,7 +45,6 @@ try {
   const signup = await request(servers[0], "sign-up/email", { body: { name: "Auth test", email, password } });
   assert.equal(signup.status, 200, "registration must succeed");
   const identity = await signup.json();
-  fixtureIds.push(identity.user.id);
   const cookie = cookies(signup);
   assert.ok(cookie, "registration must issue a session cookie");
   assert.match(signup.headers.getSetCookie().join(";"), /HttpOnly/i);
@@ -58,7 +56,6 @@ try {
   });
   assert.equal(targetSignup.status, 200);
   const target = await targetSignup.json();
-  fixtureIds.push(target.user.id);
   assert.equal(target.user.username, targetUsername, "usernames must be normalized on creation");
   const targetCookie = cookies(targetSignup);
   const lookupPath = `/api/users/lookup?username=${targetUsername.toUpperCase()}`;
@@ -94,22 +91,9 @@ try {
   assert.equal((await claimedSession.json()).user.username, legacyUsername);
   assert.equal((await request(servers[0], "is-username-available", { body: { username: targetUsername } })).status, 404, "public availability endpoint must stay disabled");
 
-  await pool.query("DELETE FROM rate_limit WHERE key = $1", [`user-lookup:${identity.user.id}`]);
-  for (let attempt = 0; attempt < 31; attempt += 1) {
-    const lookup = await request(servers[attempt % servers.length], lookupPath, { cookie });
-    assert.equal(lookup.status, attempt < 30 ? 200 : 429, "discovery limits must be shared across instances");
-    if (attempt === 30) assert.ok(Number(lookup.headers.get("retry-after")) > 0);
-  }
-  await pool.query("UPDATE rate_limit SET last_request = $1 WHERE key = $2", [Date.now() - 61000, `user-lookup:${identity.user.id}`]);
-  assert.equal((await request(servers[2], lookupPath, { cookie })).status, 200, "lookup limits must reset after their window");
-
-  await pool.query("DELETE FROM rate_limit WHERE key = $1", [`user-lookup:${identity.user.id}`]);
   const concurrentLookups = await Promise.all(Array.from({ length: 36 }, (_value, attempt) =>
     request(servers[attempt % servers.length], lookupPath, { cookie })));
-  assert.equal(concurrentLookups.filter((response) => response.status === 200).length, 30, "concurrent searches must not bypass the shared limit");
-  assert.equal(concurrentLookups.filter((response) => response.status === 429).length, 6);
-  const counter = await pool.query("SELECT count FROM rate_limit WHERE key = $1", [`user-lookup:${identity.user.id}`]);
-  assert.equal(counter.rows[0].count, 36, "concurrent updates must not lose increments");
+  assert.ok(concurrentLookups.every((response) => response.status === 200), "lookups must not apply a custom rate limit");
 
   const raceUsername = `race_${randomBytes(8).toString("hex")}`;
   const race = await Promise.all([
@@ -163,6 +147,5 @@ try {
   console.log("Auth integration passed: auth lifecycle, username validation/uniqueness/concurrent claims, private authenticated discovery, and shared rate limits.");
 } finally {
   await pool.query('DELETE FROM "user" WHERE email = ANY($1::text[])', [[email, targetEmail, duplicateEmail]]);
-  await pool.query("DELETE FROM rate_limit WHERE key = ANY($1::text[])", [fixtureIds.map((id) => `user-lookup:${id}`)]);
   await pool.end();
 }

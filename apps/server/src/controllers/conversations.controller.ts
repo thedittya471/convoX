@@ -4,7 +4,6 @@ import { createConversationSchema, conversationListQuerySchema } from "@convox/c
 import { auth } from "../utils/auth.js";
 import { config } from "../utils/config.js";
 import { createDirectConversation, listConversations } from "../services/conversations.service.js";
-import { consumeRateLimit } from "../services/rate-limit.service.js";
 
 export async function createConversation(request: Request, response: Response) {
 
@@ -21,12 +20,6 @@ export async function createConversation(request: Request, response: Response) {
 
     if (request.get("Origin") !== new URL(config.BETTER_AUTH_URL).origin) {
       return response.status(403).json({ error: "Invalid request origin." });
-    }
-
-    const retryAfter = await consumeRateLimit(`conversation-create:${session.user.id}`, 30);
-    if (retryAfter > 0) {
-      return response.status(429).set("Retry-After", String(retryAfter))
-        .json({ error: "Too many requests. Please wait a minute and try again." });
     }
 
     const parsed = createConversationSchema.safeParse(request.body);
@@ -58,12 +51,6 @@ export async function getConversations(request: Request, response: Response) {
 
     if (!session) {
       return response.status(401).json({ error: "Sign in to view conversations." });
-    }
-
-    const retryAfter = await consumeRateLimit(`conversation-list:${session.user.id}`, 60);
-    if (retryAfter > 0) {
-      return response.status(429).set("Retry-After", String(retryAfter))
-        .json({ error: "Too many requests. Please wait a minute and try again." });
     }
 
     const parsed = conversationListQuerySchema.safeParse(request.query);

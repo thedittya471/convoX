@@ -3,7 +3,6 @@ import { fromNodeHeaders } from "better-auth/node";
 import { usernameSchema } from "@convox/contracts";
 import { auth } from "../utils/auth.js";
 import { findUserByUsername } from "../services/users.service.js";
-import { consumeRateLimit } from "../services/rate-limit.service.js";
 
 export async function lookupUser(request: Request, response: Response) {
 
@@ -16,12 +15,6 @@ export async function lookupUser(request: Request, response: Response) {
 
     if (!session) {
       return response.status(401).json({ error: "Sign in to find someone." });
-    }
-
-    const retryAfter = await consumeRateLimit(`user-lookup:${session.user.id}`, 30);
-    if (retryAfter > 0) {
-      return response.status(429).set("Retry-After", String(retryAfter))
-        .json({ error: "Too many searches. Please wait a minute and try again." });
     }
 
     const parsed = usernameSchema.safeParse(request.query.username);

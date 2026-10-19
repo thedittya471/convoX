@@ -165,18 +165,11 @@ try {
     assert.equal((await request(`/api/conversations${query}`, { actor: first })).status, 400);
   }
 
-  for (const [action, actor, count] of [["create", first, 30], ["list", second, 60]]) {
-    const key = `conversation-${action}:${actor.id}`;
-    const now = Date.now();
-    await pool.query(`INSERT INTO rate_limit (id, key, count, last_request) VALUES ($1, $2, $3, $4)
-      ON CONFLICT (key) DO UPDATE SET count = $3, last_request = $4`, [randomUUID(), key, count, now]);
-    const limited = await request("/api/conversations", { actor, server: servers[2], ...(action === "create" ? { body: { otherUserId: second.id } } : {}) });
-    assert.equal(limited.status, 429);
-    assert.ok(Number(limited.headers.get("retry-after")) > 0);
-    await pool.query("UPDATE rate_limit SET last_request = $1 WHERE key = $2", [now - 61000, key]);
+  for (let attempt = 0; attempt < 61; attempt += 1) {
+    const server = servers[attempt % servers.length];
+    assert.equal((await request("/api/conversations", { actor: first, body: { otherUserId: second.id }, server })).status, 200, "opening a conversation must not apply a custom rate limit");
+    await readList(second, "", server);
   }
-  assert.equal((await request("/api/conversations", { actor: first, body: { otherUserId: second.id }, server: servers[1] })).status, 200);
-  await readList(second);
 
   const logout = await request("/api/auth/sign-out", { actor: outsider, body: {} });
   assert.equal(logout.status, 200);
@@ -184,13 +177,11 @@ try {
   assert.equal((await request("/api/conversations", { actor: outsider, body: { otherUserId: first.id } })).status, 401);
   await pool.query('UPDATE "session" SET expires_at = NOW() - INTERVAL \'1 minute\' WHERE user_id = $1', [fourth.id]);
   assert.equal((await request("/api/conversations", { actor: fourth })).status, 401);
-  console.log("Conversation integration passed: auth/origins, atomic create/open, cross-instance duplicate prevention, rollback, group-capable memberships, private cursor pagination, and shared limits.");
+  console.log("Conversation integration passed: auth/origins, atomic create/open, cross-instance duplicate prevention, rollback, group-capable memberships, private cursor pagination, and unrestricted authenticated requests.");
 } finally {
   mock.restoreAll();
   const fixtureIds = actors.map((actor) => actor.id);
   await pool.query("DELETE FROM conversation WHERE id = $1 OR direct_user_low_id = ANY($2::text[]) OR direct_user_high_id = ANY($2::text[])", [groupId, fixtureIds]);
   await pool.query('DELETE FROM "user" WHERE email = ANY($1::text[])', [emails]);
-  const keys = actors.flatMap((actor) => [`conversation-create:${actor.id}`, `conversation-list:${actor.id}`]);
-  if (keys.length) await pool.query("DELETE FROM rate_limit WHERE key = ANY($1::text[])", [keys]);
   await pool.end();
 }
