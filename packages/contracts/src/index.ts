@@ -33,9 +33,9 @@ export const conversationListQuerySchema = z.object({
 
 export const conversationSchema = z.object({
   id: z.uuid(),
-  type: z.enum(["direct", "group"]),
+  type: z.literal("direct"),
   createdAt: z.iso.datetime({ precision: 3 }),
-  peer: publicUserSchema.extend({ username: usernameSchema.nullable() }).nullable(),
+  peer: publicUserSchema.extend({ username: usernameSchema.nullable() }),
 });
 
 export const conversationResponseSchema = z.object({ conversation: conversationSchema });

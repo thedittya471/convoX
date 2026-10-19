@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { healthResponseSchema, usernameSchema, createConversationSchema, conversationListQuerySchema } from "./index.js";
+import { healthResponseSchema, usernameSchema, createConversationSchema, conversationListQuerySchema, conversationSchema } from "./index.js";
 
 test("health responses require a known status and an instance identity", () => {
   assert.equal(healthResponseSchema.safeParse({ status: "ok", instanceId: "server-1" }).success, true);
@@ -24,6 +24,18 @@ test("conversation pagination validates bounded limits and exact cursors", () =>
   for (const invalid of [{ limit: 0 }, { limit: 101 }, { limit: 1.5 }, { cursor: "invalid" }, { cursor: `${cursor}_extra` }, { userId: "someone-else" }, { limit: ["1", "2"] }]) {
     assert.equal(conversationListQuerySchema.safeParse(invalid).success, false);
   }
+});
+
+test("conversation responses describe only direct chats with a peer", () => {
+  const conversation = {
+    id: "00000000-0000-4000-8000-000000000001",
+    type: "direct",
+    createdAt: "2026-01-01T00:00:00.123Z",
+    peer: { id: "user-2", name: "Bob", username: null },
+  };
+  assert.equal(conversationSchema.safeParse(conversation).success, true);
+  assert.equal(conversationSchema.safeParse({ ...conversation, type: "group" }).success, false);
+  assert.equal(conversationSchema.safeParse({ ...conversation, peer: null }).success, false);
 });
 
 test("usernames normalize case and reject invalid names", () => {

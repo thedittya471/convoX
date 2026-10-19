@@ -45,7 +45,8 @@ async function readList(actor, query = "", server = servers[0]) {
   conversationListResponseSchema.parse(body);
   for (const item of body.conversations) {
     assert.deepEqual(Object.keys(item).sort(), ["createdAt", "id", "peer", "type"]);
-    if (item.peer) assert.deepEqual(Object.keys(item.peer).sort(), ["id", "name", "username"]);
+    assert.equal(item.type, "direct");
+    assert.deepEqual(Object.keys(item.peer).sort(), ["id", "name", "username"]);
   }
   return body;
 }
@@ -97,6 +98,8 @@ try {
   const repeated = await request("/api/conversations", { actor: first, body: { otherUserId: second.id } });
   assert.equal(repeated.status, 200);
   assert.equal((await readConversation(repeated)).id, directId);
+  assert.equal((await request("/api/conversations", { actor: first, body: { otherUserId: second.id, members: [third.id] } })).status, 400);
+  assert.equal((await request(`/api/conversations/${directId}/members`, { actor: first, body: { userId: third.id } })).status, 404, "direct chats must not expose a member-add endpoint");
 
   const originalTransaction = db.transaction.bind(db);
   let membershipAttempted = false;
@@ -134,8 +137,7 @@ try {
     await transaction.insert(conversationMember).values([second, third, fourth].map((actor) => ({ conversationId: groupId, userId: actor.id })));
   });
   const secondList = await readList(second, "", servers[1]);
-  assert.deepEqual(new Set(secondList.conversations.map((item) => item.id)), new Set([directId, groupId]));
-  assert.equal(secondList.conversations.find((item) => item.id === groupId).peer, null, "groups must not fetch or expose an unbounded member list");
+  assert.deepEqual(secondList.conversations.map((item) => item.id), [directId], "the direct-chat API must exclude groups even for their members");
   assert.equal(secondList.conversations.find((item) => item.id === directId).peer.id, first.id);
 
   const firstPage = await readList(first, "?limit=1");
@@ -158,7 +160,7 @@ try {
   assert.equal(firstList.conversations[0].id, laterId);
   assert.equal(firstList.conversations.some((item) => item.id === groupId), false, "non-members cannot see the group");
   assert.equal(firstList.conversations.find((item) => item.id === directId).peer.username, second.username);
-  const foreignCursor = secondList.conversations.find((item) => item.id === groupId);
+  const foreignCursor = { createdAt: new Date().toISOString(), id: groupId };
   const filtered = await readList(first, `?cursor=${encodeURIComponent(`${foreignCursor.createdAt}_${foreignCursor.id}`)}`);
   assert.ok(filtered.conversations.every((item) => [...directIds, laterId].includes(item.id)), "a cursor is not an authorization grant");
   for (const query of ["?limit=0", "?limit=101", "?limit=1.5", "?cursor=invalid", "?limit=1&limit=2", "?cursor=2026-99-99T00:00:00.000Z_invalid"]) {

@@ -55,7 +55,7 @@ export async function createDirectConversation(userId: string, otherUserId: stri
       created: Boolean(inserted),
       conversation: {
         id: saved.id,
-        type: saved.type,
+        type: "direct",
         createdAt: saved.createdAt.toISOString(),
         peer
       } satisfies Conversation,
@@ -67,7 +67,6 @@ export async function listConversations(userId: string, { limit, cursor }: Conve
 
   const rows = await db.select({
     id: conversation.id,
-    type: conversation.type,
     createdAt: conversation.createdAt,
     peer: {
       id: user.id,
@@ -77,12 +76,13 @@ export async function listConversations(userId: string, { limit, cursor }: Conve
   })
     .from(conversationMember)
     .innerJoin(conversation, eq(conversation.id, conversationMember.conversationId))
-    .leftJoin(user, or(
+    .innerJoin(user, or(
       and(eq(conversation.directUserLowId, userId), eq(user.id, conversation.directUserHighId)),
       and(eq(conversation.directUserHighId, userId), eq(user.id, conversation.directUserLowId)),
     ))
     .where(and(
       eq(conversationMember.userId, userId),
+      eq(conversation.type, "direct"),
       cursor ? or(
         lt(conversation.createdAt, new Date(cursor[0])),
         and(eq(conversation.createdAt, new Date(cursor[0])), lt(conversation.id, cursor[1])),
@@ -95,7 +95,7 @@ export async function listConversations(userId: string, { limit, cursor }: Conve
   const last = page.at(-1);
 
   return {
-    conversations: page.map((row): Conversation => ({ ...row, createdAt: row.createdAt.toISOString() })),
+    conversations: page.map((row): Conversation => ({ ...row, type: "direct", createdAt: row.createdAt.toISOString() })),
     nextCursor: rows.length > limit && last ? `${last.createdAt.toISOString()}_${last.id}` : null,
   };
 }
