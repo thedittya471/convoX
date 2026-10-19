@@ -6,7 +6,7 @@ convoX focuses on reliable delivery across instances, shared presence and typing
 
 ## Project status
 
-The development foundation includes Next.js, Express, Better Auth email/password authentication with PostgreSQL-backed sessions, signup/login screens, Drizzle migrations, shared contracts, checks, and a local three-instance Docker stack. Chat features and real-time routing are not implemented. Email verification and password-reset delivery are not configured. The capabilities and performance figures below remain release requirements, not verified results.
+The development foundation includes Next.js, Express, Better Auth email/password authentication with PostgreSQL-backed sessions, signup/login screens, backend user discovery and direct-conversation APIs, Drizzle migrations, shared contracts, checks, and a local three-instance Docker stack. Messages and real-time routing are not implemented. Email verification and password-reset delivery are not configured. The capabilities and performance figures below remain release requirements, not verified results.
 
 ## Release scope
 
@@ -100,7 +100,7 @@ Server `.env` is loaded by the development command; containers receive variables
 
 ### Database workflow
 
-`apps/server/src/db/schema/auth.schema.ts` defines Better Auth's user, account, session, verification and shared rate-limit tables. Add future domain schemas as separate `*.schema.ts` files in that folder; Drizzle discovers them through its configured glob. The initial migration is committed under `apps/server/drizzle/`; apply it with `pnpm db:migrate` before using authentication. Domain/chat tables remain unimplemented.
+`apps/server/src/db/schema/auth.schema.ts` defines Better Auth's user, account, session, verification and shared rate-limit tables. `conversation.schema.ts` defines conversations and memberships. Add future domain schemas as separate `*.schema.ts` files in that folder; Drizzle discovers them through its configured glob. Apply reviewed migrations under `apps/server/drizzle/` with `pnpm db:migrate` before starting updated services. Message storage remains unimplemented.
 
 After defining or changing tables:
 
@@ -117,7 +117,7 @@ Review generated SQL in `apps/server/drizzle/`. Run migrations once per deployme
 pnpm check
 ```
 
-This builds all packages, checks types, lints each package, and runs the shared health/username contract tests. Server unit tests are not included. The Docker smoke check verifies runtime health across all three backend instances and graceful shutdown/restart. CI runs these checks on Node 24.
+This builds all packages, checks types, lints each package, and runs the shared health/username/conversation contract tests. Server unit tests are not included. The Docker smoke check verifies runtime health across all three backend instances and graceful shutdown/restart. CI runs these checks on Node 24.
 
 ### Authentication
 
@@ -153,15 +153,34 @@ Runtime dependency audit currently reports a moderate advisory in a transitive e
 
 ### User discovery
 
-Server flow: `routes/users.ts` maps the endpoint, `controllers/users.controller.ts` handles authentication/validation and HTTP responses, and `services/users.service.ts` owns lookup queries and rate-limit logic. The service uses Drizzle's insert/upsert/returning APIs. Its small `sql` expressions keep the counter increment and window reset inside one atomic PostgreSQL statement, preventing concurrent requests on different instances from bypassing the limit. There is no separate repository layer or generic controller framework.
+Server flow: `routes/users.ts` maps the endpoint, `controllers/users.controller.ts` handles authentication/validation and HTTP responses, and `services/users.service.ts` owns lookup queries. User discovery and conversations share `services/rate-limit.service.ts`, which uses Drizzle's insert/upsert/returning APIs. Its small `sql` expressions keep the counter increment and window reset inside one atomic PostgreSQL statement, preventing concurrent requests on different instances from bypassing the limit. There is no separate repository layer or generic controller framework.
 
 Apply the additive username migration with `pnpm db:migrate` before starting the updated application. Existing accounts are preserved with a nullable username. User discovery is backend-only for now: the signup username field, username setup form and search UI have been removed. Better Auth's server-side username plugin still accepts optional usernames during API signup or authenticated `POST /api/auth/update-user` requests. It validates usernames and normalizes them to lowercase; PostgreSQL enforces uniqueness. Usernames are 3–30 ASCII letters, numbers, underscores or dots. Display names are not unique and are not search keys. Username availability and username/password login endpoints are disabled; email/password login is unchanged. Callers should keep the returned user ID as the stable identity, not the username.
 
 `GET /api/users/lookup?username=alice` requires a valid session, matches a complete username case-insensitively, excludes the caller, and returns only `{ "user": { "id": "…", "username": "alice", "name": "Alice" } }`. It never returns email, session tokens, or a directory listing. Responses use `Cache-Control: no-store`. Status codes: 400 invalid input, 401 missing/expired session, 404 no other matching user, 429 rate limited (with `Retry-After`), 503 temporarily unavailable. The limit is 30 lookups per account per 60-second fixed window, shared across instances through the existing PostgreSQL rate-limit table; invalid authenticated attempts also count.
 
-Only accounts that choose a username through the API are discoverable. The backend does not create conversations or send messages; the found user ID is ready for the next conversation feature. Authenticated discovery intentionally reveals the display name associated with a known username. Rate limits reduce enumeration but do not make public usernames secret or prevent abuse through many accounts; verified signup and abuse controls remain launch requirements.
+Only accounts that choose a username through the API are discoverable. Use the found user ID to open a direct conversation. Authenticated discovery intentionally reveals the display name associated with a known username. Rate limits reduce enumeration but do not make public usernames secret or prevent abuse through many accounts; verified signup and abuse controls remain launch requirements.
 
 Use `pnpm test:auth` to verify backend discovery and username handling; there is currently no browser discovery flow.
+
+### Conversations (backend only)
+
+`conversation` stores an ID, type (`direct` or `group`), creation time, and an optional normalized user pair used only to deduplicate direct chats. `conversation_member` stores one row per membership, with a composite primary key and a user/conversation index. The member table supports groups without embedding unbounded member arrays in a conversation row. No group-creation or membership-management API exists yet. Direct creation inserts exactly the caller and target as members in the same transaction; there is no endpoint for adding extra direct members. Database checks enforce distinct, canonically ordered direct pairs and empty pair fields on group rows. A unique pair index prevents duplicate direct chats across instances and reversed requests.
+
+Run `pnpm db:migrate` before deploying the updated backend. User foreign keys use `RESTRICT`: deleting a user with conversation references fails rather than silently erasing history. Deleting a conversation explicitly cascades its membership rows. User/conversation deletion, retention, invitations, blocking, and group history-visibility policies are not implemented. Either authenticated user may initiate a direct conversation; no invitation is required.
+
+| Operation | Request | Response |
+| --- | --- | --- |
+| Create/open direct chat | `POST /api/conversations` with `{ "otherUserId": "<user ID>" }` | 201 for creation, 200 for an existing pair; `{ "conversation": { "id", "type", "createdAt", "peer": { "id", "name", "username" } } }` |
+| List own conversations | `GET /api/conversations?limit=20&cursor=<nextCursor>` | `{ "conversations": [...], "nextCursor": "..." }`, or `nextCursor: null` at the end |
+
+Both endpoints require the session cookie and use `Cache-Control: no-store`. POST also requires an `Origin` header matching the public `BETTER_AUTH_URL` origin, including its port; browser clients supply it automatically, and non-browser clients must set it explicitly. The caller ID always comes from the session; supplied user IDs, group types, or membership arrays in extra body fields are rejected. Self-targets and invalid inputs return 400, missing targets 404, missing/expired/revoked sessions 401, invalid/missing POST origins 403, rate limits 429 with `Retry-After`, and temporary backend failures 503.
+
+Listings are scoped by the caller's membership in the database query. They return peer ID, name and nullable username for direct chats, never peer email, internal pair fields, tokens, or complete member lists. Group rows, if provisioned directly for testing, return `peer: null`. The limit defaults to 20 and is capped at 100. Ordering is creation time descending, then ID descending—not recent message activity. Pass the returned cursor unchanged; it encodes a millisecond-precision UTC timestamp and UUID. The membership filter applies regardless of cursor contents, and cursor pagination is not a snapshot: newer conversations created after the first page appear on a fresh first page rather than being duplicated in older pages.
+
+Create/open requests are limited to 30/account/minute; list requests to 60/account/minute. These are independent fixed-window counters shared through PostgreSQL. Creation errors/invalid inputs count after authentication and origin validation. No frontend changes, messages, Redis, sockets, notifications, search index, or sharding are included, and no million-user/trillion-message capacity claim is made.
+
+`pnpm test:conversations` checks authentication and origins, concurrent/reversed-pair creation, two unique memberships, rollback after a forced membership failure, private peer fields, outsider isolation, group-capable membership storage, tied-timestamp cursor pagination with intervening inserts, and shared limits. Fixtures and their conversations/memberships/counters are cleaned up afterward. It requires the migrated, running Compose stack; the test runs inside a backend container and CI runs it after auth checks.
 
 ### Three-instance local stack
 
@@ -170,6 +189,7 @@ pnpm stack:up
 docker compose exec -T server-1 pnpm --filter @convox/server db:migrate
 pnpm test:smoke
 pnpm test:auth
+pnpm test:conversations
 pnpm stack:down
 ```
 
@@ -183,7 +203,7 @@ Compose uses fixed development credentials and plaintext localhost HTTP. It is n
 
 ### Next implementation steps
 
-Next implement authorized one-to-one conversations using the stable user IDs returned by discovery. Settle retention/recovery policy before durable messages and idempotency, followed by reconnect synchronization, presence, typing, metrics and release qualification. Do not enable chat socket connections before conversation authorization exists.
+Next settle message retention/recovery and end-to-end encryption versus server-readable storage before implementing durable messages, idempotency and history pagination. Reuse conversation IDs and server-side membership checks. Reconnect synchronization, presence, typing, metrics and release qualification follow; group management and large-group policies remain separate work.
 
 ## Documentation
 

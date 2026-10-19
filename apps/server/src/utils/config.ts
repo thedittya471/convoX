@@ -9,8 +9,13 @@ const configSchema = z.object({
 });
 
 const parsed = configSchema.safeParse(process.env);
+
 if (!parsed.success) {
-  console.error(JSON.stringify({ event: "invalid_configuration", fields: parsed.error.issues.map((issue) => issue.path.join(".")) }));
+  console.error(JSON.stringify({
+    event: "invalid_configuration",
+    fields: parsed.error.issues.map((issue) => issue.path.join("."))
+  }));
+
   process.exit(1);
 }
 

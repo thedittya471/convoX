@@ -20,7 +20,10 @@ export const session = pgTable("session", {
   userAgent: text("user_agent"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [index("session_user_idx").on(table.userId), index("session_expiry_idx").on(table.expiresAt)]);
+}, (table) => [
+  index("session_user_idx").on(table.userId),
+  index("session_expiry_idx").on(table.expiresAt)
+]);
 
 export const account = pgTable("account", {
   id: text("id").primaryKey(),
@@ -36,7 +39,10 @@ export const account = pgTable("account", {
   password: text("password"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [index("account_user_idx").on(table.userId), uniqueIndex("account_provider_idx").on(table.providerId, table.accountId)]);
+}, (table) => [
+  index("account_user_idx").on(table.userId),
+  uniqueIndex("account_provider_idx").on(table.providerId, table.accountId)
+]);
 
 export const verification = pgTable("verification", {
   id: text("id").primaryKey(),
@@ -45,7 +51,9 @@ export const verification = pgTable("verification", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [index("verification_identifier_idx").on(table.identifier)]);
+}, (table) => [
+  index("verification_identifier_idx").on(table.identifier)
+]);
 
 export const rateLimit = pgTable("rate_limit", {
   id: text("id").primaryKey(),

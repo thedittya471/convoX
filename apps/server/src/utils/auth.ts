@@ -12,12 +12,18 @@ export const auth = betterAuth({
   secret: config.BETTER_AUTH_SECRET,
   trustedOrigins: [new URL(config.BETTER_AUTH_URL).origin],
   database: drizzleAdapter(db, { provider: "pg", schema }),
-  plugins: [username({
-    displayUsername: false,
-    usernameValidator: (value) => usernameSchema.safeParse(value).success,
-  })],
+  plugins: [
+    username({
+      displayUsername: false,
+      usernameValidator: (value) => usernameSchema.safeParse(value).success,
+    })
+  ],
   disabledPaths: ["/is-username-available", "/sign-in/username"],
-  emailAndPassword: { enabled: true, minPasswordLength: 12, maxPasswordLength: 128 },
+  emailAndPassword: {
+    enabled: true,
+    minPasswordLength: 12,
+    maxPasswordLength: 128
+  },
   session: {
     expiresIn: 60 * 60 * 24 * 7,
     updateAge: 60 * 60 * 24,

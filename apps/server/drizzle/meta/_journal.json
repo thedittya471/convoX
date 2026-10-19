@@ -15,6 +15,13 @@
       "when": 1792356562892,
       "tag": "0001_cultured_living_lightning",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792358665992,
+      "tag": "0002_parched_overlord",
+      "breakpoints": true
     }
   ]
 }

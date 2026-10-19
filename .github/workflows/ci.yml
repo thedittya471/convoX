@@ -24,6 +24,7 @@ jobs:
       - run: docker compose exec -T server-1 pnpm --filter @convox/server db:migrate
       - run: pnpm test:smoke
       - run: pnpm test:auth
+      - run: pnpm test:conversations
       - if: failure()
         run: docker compose --profile stack logs --tail=100
       - if: always()
