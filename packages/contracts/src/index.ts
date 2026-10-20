@@ -78,3 +78,9 @@ export const messageListResponseSchema = z.object({
 export type CreateMessage = z.infer<typeof createMessageSchema>;
 export type Message = z.infer<typeof messageSchema>;
 export type MessageListQuery = z.infer<typeof messageListQuerySchema>;
+
+export type RealtimeEvents = {
+  "message:created": (message: Message) => void;
+  "realtime:ready": (value: { instanceId: string }) => void;
+  "sync:required": () => void;
+};

@@ -146,7 +146,7 @@ async function run() {
     assert.deepEqual((await readHistory(bob, id, `?after=${duringPagination.sequence}`)).messages, []);
     const stored = await pool.query("SELECT m.id, m.encrypted_payload, o.published_at FROM message m JOIN message_outbox o ON o.message_id = m.id WHERE m.conversation_id = $1", [id]);
     assert.equal(stored.rowCount, collected.length);
-    assert.ok(stored.rows.every((item) => item.published_at === null));
+    assert.ok(stored.rows.every((item) => item.published_at === null || item.published_at instanceof Date));
     assert.equal(stored.rows.find((item) => item.id === first.id).encrypted_payload, body.encryptedPayload);
     assert.equal((await pool.query("SELECT id FROM message WHERE sender_id = $1 AND client_message_id = $2", [alice.id, body.clientMessageId])).rowCount, 1);
 

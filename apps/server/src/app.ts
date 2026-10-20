@@ -6,6 +6,7 @@ import { pool } from "./db/client.js";
 import { auth } from "./utils/auth.js";
 import { usersRouter } from "./routes/users.js";
 import { conversationsRouter } from "./routes/conversations.js";
+import { publisher, subscriber } from "./utils/redis.js";
 
 const app = express();
 
@@ -25,7 +26,8 @@ app.get("/api/health/live", (_request, response) => {
 
 app.get("/api/health/ready", async (_request, response) => {
 
-  const ready = await pool.query("SELECT 1").then(() => true, () => false);
+  const databaseReady = await pool.query("SELECT 1").then(() => true, () => false);
+  const ready = databaseReady && publisher.isReady && subscriber.isReady;
 
   response.status(ready ? 200 : 503).set("Cache-Control", "no-store").json({
     status: ready ? "ok" : "unavailable",

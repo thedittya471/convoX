@@ -2,8 +2,13 @@ import { createServer } from "node:http";
 import app from "./app.js";
 import { config } from "./utils/config.js";
 import { pool } from "./db/client.js";
+import { publisher, subscriber } from "./utils/redis.js";
+import { createRealtimeServer, connectRealtime, publishMessage } from "./utils/realtime.js";
+import { startOutboxPublisher } from "./services/outbox.service.js";
 
 const server = createServer(app);
+const io = createRealtimeServer(server);
+let stopPublisher: (() => Promise<void>) | undefined;
 let stopping = false;
 
 async function shutdown(exitCode: number) {
@@ -18,7 +23,9 @@ async function shutdown(exitCode: number) {
   deadline.unref();
 
   try {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await stopPublisher?.();
+    await new Promise<void>((resolve) => io.close(() => resolve()));
+    await Promise.all([publisher, subscriber].filter((client) => client.isOpen).map((client) => client.close()));
     await pool.end();
     clearTimeout(deadline);
     process.exitCode = exitCode;
@@ -40,6 +47,8 @@ server.on("error", () => {
 
 try {
   await pool.query("SELECT 1");
+  await connectRealtime(io);
+  stopPublisher = startOutboxPublisher((message, participants) => publishMessage(io, message, participants));
 
   server.listen(config.PORT, "0.0.0.0", () => {
 

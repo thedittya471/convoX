@@ -5,7 +5,7 @@ import { db } from "../db/client.js";
 import { conversation } from "../db/schema/conversation.schema.js";
 import { message, messageOutbox } from "../db/schema/message.schema.js";
 
-function serializeMessage(row: typeof message.$inferSelect): Message {
+export function serializeMessage(row: typeof message.$inferSelect): Message {
 
   return { ...row, sequence: row.sequence.toString(), createdAt: row.createdAt.toISOString() };
 }

@@ -4,6 +4,7 @@ const configSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   INSTANCE_ID: z.string().min(1).default("local"),
   DATABASE_URL: z.url().refine((value) => ["postgres:", "postgresql:"].includes(new URL(value).protocol)),
+  REDIS_URL: z.url().refine((value) => ["redis:", "rediss:"].includes(new URL(value).protocol)).default("redis://localhost:56379"),
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: z.url().refine((value) => ["http:", "https:"].includes(new URL(value).protocol)),
 });
