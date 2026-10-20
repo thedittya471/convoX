@@ -43,10 +43,10 @@ async function run() {
   const emails = Array.from({ length: 3 }, (_value, index) => `message-test-${suffix}-${index}@example.com`);
   const triggerName = `message_test_${suffix.replaceAll("-", "")}`;
 
-  async function request(path, { actor, body, server = servers[0], requestOrigin = origin } = {}) {
+  async function request(path, { actor, body, server = servers[0], requestOrigin = origin, expectedUserId } = {}) {
     return fetch(`${server}${path}`, {
       method: body === undefined ? "GET" : "POST",
-      headers: { ...(actor ? { cookie: actor.cookie } : {}), ...(requestOrigin ? { origin: requestOrigin } : {}), ...(body === undefined ? {} : { "content-type": "application/json" }) },
+      headers: { ...(actor ? { cookie: actor.cookie } : {}), ...(requestOrigin ? { origin: requestOrigin } : {}), ...(expectedUserId ? { "X-Expected-User-Id": expectedUserId } : {}), ...(body === undefined ? {} : { "content-type": "application/json" }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       signal: AbortSignal.timeout(10000),
     });
@@ -82,6 +82,9 @@ async function run() {
     assert.equal((await request(path, { body })).status, 401);
     assert.equal((await request(path, { actor: outsider })).status, 404);
     assert.equal((await request(path, { actor: outsider, body })).status, 404);
+    assert.equal((await request(path, { actor: alice, expectedUserId: bob.id })).status, 403);
+    assert.equal((await request(path, { actor: alice, body, expectedUserId: bob.id })).status, 403);
+    assert.equal((await request(path, { actor: alice, expectedUserId: alice.id })).status, 200);
     assert.equal((await request(`/api/conversations/${randomUUID()}/messages`, { actor: alice, body })).status, 404);
     for (const requestOrigin of [null, "https://untrusted.example"]) {
       assert.equal((await request(path, { actor: alice, body, requestOrigin })).status, 403);

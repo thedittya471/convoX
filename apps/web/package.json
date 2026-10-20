@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "tsx --test ../../tests/client/*.mjs"
+    "test": "tsx --test tests/*.mjs"
   },
   "dependencies": {
     "@convox/contracts": "workspace:*",

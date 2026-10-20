@@ -45,6 +45,7 @@ export function createChatClient(options: ChatOptions) {
   let unauthorized = false;
   let ready = false;
   let syncing = false;
+  let historyHealthy = false;
   let syncRequested = false;
   let sendRequested = false;
   let starting: Promise<void> | undefined;
@@ -59,7 +60,7 @@ export function createChatClient(options: ChatOptions) {
     return { status, cursor: cursor.toString(), pending: pending.map((entry) => ({ ...entry })), error };
   }
 
-  function notify(nextStatus = status, nextError: string | null = null) {
+  function notify(nextStatus = status, nextError: string | null = error) {
 
     if (stopped) return;
     status = nextStatus;
@@ -71,6 +72,7 @@ export function createChatClient(options: ChatOptions) {
 
     unauthorized = true;
     ready = false;
+    controller.abort();
     socket.disconnect();
     if (retryTimer) clearTimeout(retryTimer);
     if (interval) clearInterval(interval);
@@ -132,7 +134,8 @@ export function createChatClient(options: ChatOptions) {
 
     syncingTask = (async () => {
       syncing = true;
-      notify("syncing");
+      historyHealthy = false;
+      notify("syncing", null);
       while (syncRequested && !stopped && !unauthorized && ready) {
         syncRequested = false;
         let more = true;
@@ -158,8 +161,9 @@ export function createChatClient(options: ChatOptions) {
           more = page.nextAfter !== null || cursor < highest;
         }
       }
-      retryDelay = 500;
-      notify(ready ? "connected" : "reconnecting");
+      historyHealthy = ready;
+      if (!pending.some((entry) => !entry.error)) retryDelay = 500;
+      notify(ready ? "connected" : "reconnecting", null);
     })().catch(() => {
       if (!stopped && !unauthorized) {
         notify("error", "Could not synchronize messages. Retrying from the last complete sequence.");
@@ -207,6 +211,7 @@ export function createChatClient(options: ChatOptions) {
         }
       }
       pending = await loadPendingMessages(userId, conversationId);
+      if (historyHealthy) retryDelay = 500;
       notify();
     })().catch(() => {
       if (!stopped && !unauthorized) {
@@ -276,8 +281,8 @@ export function createChatClient(options: ChatOptions) {
       socket.on("auth:required", requireAuth);
       socket.on("disconnect", onDisconnect);
       socket.on("connect_error", onConnectError);
-      notify("connecting");
-      interval = setInterval(() => { void synchronize(); }, 15000);
+      notify("connecting", null);
+      interval = setInterval(() => { void synchronize(); }, 15000 + Math.random() * 5000);
       socket.connect();
     })();
     return starting;

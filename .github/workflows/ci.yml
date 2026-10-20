@@ -27,6 +27,7 @@ jobs:
       - run: pnpm test:conversations
       - run: pnpm test:messages
       - run: pnpm test:realtime
+      - run: pnpm test:client-sync
       - if: failure()
         run: docker compose --profile stack logs --tail=100
       - if: always()

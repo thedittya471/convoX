@@ -1,13 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { EventEmitter } from "node:events";
-import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
-import { createChatClient } from "../../apps/web/src/lib/chat-client.ts";
-
-const require = createRequire(new URL("../../apps/web/package.json", import.meta.url));
-require("fake-indexeddb/auto");
+import "fake-indexeddb/auto";
+import { createChatClient } from "../src/lib/chat-client.ts";
 
 class TestSocket extends EventEmitter {
   connected = false;
@@ -227,5 +224,25 @@ test("sequence handling preserves precision beyond JavaScript's safe integer ran
     setup.socket.emit("message:created", setup.message("9007199254740993"));
     assert.equal(client.getState().cursor, "9007199254740993");
     assert.equal(setup.received[0].sequence, "9007199254740993");
+  } finally { await client.stop(); }
+});
+
+test("a failed message consumer does not acknowledge a sequence it could not apply", async () => {
+  const setup = fixture();
+  let failing = true;
+  const client = setup.client({ onMessages: (batch) => {
+    if (failing) throw new Error("Synthetic consumer failure");
+    setup.received.push(...batch);
+  } });
+  try {
+    await client.start();
+    await until(() => client.getState().status === "connected");
+    setup.rows.push(setup.message(1));
+    setup.socket.emit("message:created", setup.rows[0]);
+    assert.equal(client.getState().cursor, "0");
+    failing = false;
+    await client.synchronize();
+    assert.equal(client.getState().cursor, "1");
+    assert.equal(setup.received.length, 1);
   } finally { await client.stop(); }
 });
