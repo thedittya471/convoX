@@ -100,7 +100,7 @@ Server `.env` is loaded by the development command; containers receive variables
 
 ### Database workflow
 
-`apps/server/src/db/schema/auth.schema.ts` defines Better Auth's user, account, session, verification and shared rate-limit tables. `conversation.schema.ts` defines conversations and memberships. Add future domain schemas as separate `*.schema.ts` files in that folder; Drizzle discovers them through its configured glob. Apply reviewed migrations under `apps/server/drizzle/` with `pnpm db:migrate` before starting updated services. Message storage remains unimplemented.
+`apps/server/src/db/schema/auth.schema.ts` defines Better Auth's user, account, session, verification and shared rate-limit tables. `conversation.schema.ts` defines direct conversations with two required participant IDs. Add future domain schemas as separate `*.schema.ts` files in that folder; Drizzle discovers them through its configured glob. Apply reviewed migrations under `apps/server/drizzle/` with `pnpm db:migrate` before starting updated services. Message storage remains unimplemented.
 
 After defining or changing tables:
 
@@ -165,9 +165,9 @@ Use `pnpm test:auth` to verify backend discovery and username handling; there is
 
 ### Conversations (backend only)
 
-`conversation` stores an ID, type (`direct` or `group`), creation time, and an optional normalized user pair used only to deduplicate direct chats. `conversation_member` stores one row per membership, with a composite primary key and a user/conversation index. The member table supports groups without embedding unbounded member arrays in a conversation row. No group-creation or membership-management API exists yet. Direct creation inserts exactly the caller and target as members in the same transaction; there is no endpoint for adding extra direct members. Database checks enforce distinct, canonically ordered direct pairs and empty pair fields on group rows. A unique pair index prevents duplicate direct chats across instances and reversed requests.
+`conversation` stores an ID, creation time, and two required participant IDs (`direct_user_low_id`, `direct_user_high_id`). These IDs are canonically ordered; a database check prevents self-pairs and a unique pair index prevents duplicate chats across instances and reversed requests. The participants themselves determine access, with no separate membership table. No group storage, group APIs or participant-management endpoints are implemented. The API retains `type: "direct"` for response compatibility; this constant is not stored in PostgreSQL.
 
-Run `pnpm db:migrate` before deploying the updated backend. User foreign keys use `RESTRICT`: deleting a user with conversation references fails rather than silently erasing history. Deleting a conversation explicitly cascades its membership rows. User/conversation deletion, retention, invitations, blocking, and group history-visibility policies are not implemented. Either authenticated user may initiate a direct conversation; no invitation is required.
+Migration `0003_direct_conversation_participants` preserves direct conversation IDs, participant pairs and creation times, removes the redundant membership table and type column/enum, and makes both participant columns required. It aborts if any group conversations exist rather than deleting their data. Stop all old backend instances before applying `pnpm db:migrate`, then start the updated backend: old code references the removed table/column and is not compatible with the new schema. Back up non-disposable databases first; rolling back requires restoring the old schema and memberships, not just the old application image. User foreign keys use `RESTRICT`: deleting a referenced user fails rather than silently erasing history. User/conversation deletion, retention, invitations and blocking are not implemented. Either authenticated user may initiate a direct conversation; no invitation is required.
 
 | Operation | Request | Response |
 | --- | --- | --- |
@@ -176,11 +176,11 @@ Run `pnpm db:migrate` before deploying the updated backend. User foreign keys us
 
 Both endpoints require the session cookie and use `Cache-Control: no-store`. POST also requires an `Origin` header matching the public `BETTER_AUTH_URL` origin, including its port; browser clients supply it automatically, and non-browser clients must set it explicitly. The caller ID always comes from the session; supplied user IDs, group types, or membership arrays in extra body fields are rejected. Self-targets and invalid inputs return 400, missing targets 404, missing/expired/revoked sessions 401, invalid/missing POST origins 403, and temporary backend failures 503.
 
-Both `/api/conversations` endpoints are direct-chat-only. Listings filter by the caller's membership and `direct` type in the database query, excluding group rows even when the caller belongs to them. Responses always include a peer with ID, name and nullable username, never peer email, internal pair fields, tokens, or complete member lists. The shared tables remain group-capable, but no group or member-management endpoints are exposed. The limit defaults to 20 and is capped at 100. Ordering is creation time descending, then ID descending—not recent message activity. Pass the returned cursor unchanged; it encodes a millisecond-precision UTC timestamp and UUID. The membership filter applies regardless of cursor contents, and cursor pagination is not a snapshot: newer conversations created after the first page appear on a fresh first page rather than being duplicated in older pages.
+Both `/api/conversations` endpoints are direct-chat-only. Listings require the caller to match either stored participant ID in the database query. Responses always include a peer with ID, name and nullable username, never peer email, internal pair fields, tokens, or complete member lists. Groups will be a separate future feature. The limit defaults to 20 and is capped at 100. Ordering is creation time descending, then ID descending—not recent message activity. Pass the returned cursor unchanged; it encodes a millisecond-precision UTC timestamp and UUID. The participant filter applies regardless of cursor contents, and cursor pagination is not a snapshot: newer conversations created after the first page appear on a fresh first page rather than being duplicated in older pages.
 
 Create/open and list requests currently have no application-level rate limits. Better Auth login/signup protection remains enabled. No frontend changes, messages, Redis, sockets, notifications, search index, or sharding are included, and no million-user/trillion-message capacity claim is made.
 
-`pnpm test:conversations` checks authentication and origins, concurrent/reversed-pair creation, two unique memberships, rejection of extra members, rollback after a forced membership failure, private peer fields, outsider isolation, exclusion of group memberships from direct-chat listings, tied-timestamp cursor pagination with intervening inserts, and repeated requests without custom limits. Fixtures and their conversations/memberships are cleaned up afterward. It requires the migrated, running Compose stack; the test runs inside a backend container and CI runs it after auth checks.
+`pnpm test:conversations` checks authentication and origins, required/distinct/ordered participant pairs, concurrent/reversed-pair creation, rejection of extra members, private peer fields, outsider isolation, tied-timestamp cursor pagination with intervening inserts, and repeated requests without custom limits. Fixtures and their conversations are cleaned up afterward. It requires the migrated, running Compose stack; the test runs inside a backend container and CI runs it after auth checks.
 
 ### Three-instance local stack
 
@@ -203,7 +203,7 @@ Compose uses fixed development credentials and plaintext localhost HTTP. It is n
 
 ### Next implementation steps
 
-Next settle message retention/recovery and end-to-end encryption versus server-readable storage before implementing durable messages, idempotency and history pagination. Reuse conversation IDs and server-side membership checks. Reconnect synchronization, presence, typing, metrics and release qualification follow; group management and large-group policies remain separate work.
+Next settle message retention/recovery and end-to-end encryption versus server-readable storage before implementing durable messages, idempotency and history pagination. Reuse conversation IDs and server-side participant checks. Reconnect synchronization, presence, typing, metrics and release qualification follow; group storage, management and large-group policies remain separate work.
 
 ## Documentation
 

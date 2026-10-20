@@ -3,7 +3,7 @@ import { and, desc, eq, lt, or } from "drizzle-orm";
 import type { Conversation, ConversationListQuery } from "@convox/contracts";
 import { db } from "../db/client.js";
 import { user } from "../db/schema/auth.schema.js";
-import { conversation, conversationMember } from "../db/schema/conversation.schema.js";
+import { conversation } from "../db/schema/conversation.schema.js";
 
 export async function createDirectConversation(userId: string, otherUserId: string) {
 
@@ -26,18 +26,13 @@ export async function createDirectConversation(userId: string, otherUserId: stri
     }
 
     const [inserted] = await transaction.insert(conversation)
-      .values({ id: randomUUID(), type: "direct", directUserLowId, directUserHighId })
+      .values({ id: randomUUID(), directUserLowId, directUserHighId })
       .onConflictDoNothing({ target: [conversation.directUserLowId, conversation.directUserHighId] })
       .returning();
 
     let saved = inserted;
 
-    if (inserted) {
-      await transaction.insert(conversationMember).values([
-        { conversationId: inserted.id, userId },
-        { conversationId: inserted.id, userId: otherUserId },
-      ]);
-    } else {
+    if (!inserted) {
       [saved] = await transaction.select()
         .from(conversation)
         .where(and(
@@ -74,15 +69,13 @@ export async function listConversations(userId: string, { limit, cursor }: Conve
       username: user.username
     },
   })
-    .from(conversationMember)
-    .innerJoin(conversation, eq(conversation.id, conversationMember.conversationId))
+    .from(conversation)
     .innerJoin(user, or(
       and(eq(conversation.directUserLowId, userId), eq(user.id, conversation.directUserHighId)),
       and(eq(conversation.directUserHighId, userId), eq(user.id, conversation.directUserLowId)),
     ))
     .where(and(
-      eq(conversationMember.userId, userId),
-      eq(conversation.type, "direct"),
+      or(eq(conversation.directUserLowId, userId), eq(conversation.directUserHighId, userId)),
       cursor ? or(
         lt(conversation.createdAt, new Date(cursor[0])),
         and(eq(conversation.createdAt, new Date(cursor[0])), lt(conversation.id, cursor[1])),
