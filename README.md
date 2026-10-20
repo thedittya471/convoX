@@ -6,7 +6,7 @@ convoX focuses on reliable delivery across instances, shared presence and typing
 
 ## Project status
 
-The development foundation includes Next.js, Express, Better Auth email/password authentication with PostgreSQL-backed sessions, signup/login screens, backend user discovery and direct-conversation APIs, Drizzle migrations, shared contracts, checks, and a local three-instance Docker stack. Messages and real-time routing are not implemented. Email verification and password-reset delivery are not configured. The capabilities and performance figures below remain release requirements, not verified results.
+The development foundation includes Next.js, Express, Better Auth email/password authentication with PostgreSQL-backed sessions, signup/login screens, backend user discovery, direct-conversation and durable message APIs, Drizzle migrations, shared contracts, checks, and a local three-instance Docker stack. Message storage supports duplicate-safe retries, ordered history and transactional outbox entries. End-to-end encryption, multi-device recovery, outbox publishing and real-time routing are not implemented. Email verification and password-reset delivery are not configured. The capabilities and performance figures below remain release requirements, not verified results.
 
 ## Release scope
 
@@ -19,7 +19,7 @@ The development foundation includes Next.js, Express, Better Auth email/password
 - Automatic reconnection to a healthy instance and recovery of missed messages.
 - Per-instance connection counts, message throughput, and delivery latency.
 
-Group chat, attachments, message editing/deletion, search, read receipts, push notifications, native mobile apps, end-to-end encryption, and multi-region deployment are outside this release.
+Client-side end-to-end encryption and multi-device support are planned for the custom chat implementation. Group chat, attachments, message editing/deletion, search, read receipts, push notifications, native mobile apps and multi-region deployment are outside this release.
 
 ## Reliability contract
 
@@ -100,7 +100,9 @@ Server `.env` is loaded by the development command; containers receive variables
 
 ### Database workflow
 
-`apps/server/src/db/schema/auth.schema.ts` defines Better Auth's user, account, session, verification and shared rate-limit tables. `conversation.schema.ts` defines direct conversations with two required participant IDs. Add future domain schemas as separate `*.schema.ts` files in that folder; Drizzle discovers them through its configured glob. Apply reviewed migrations under `apps/server/drizzle/` with `pnpm db:migrate` before starting updated services. Message storage remains unimplemented.
+`apps/server/src/db/schema/auth.schema.ts` defines Better Auth's user, account, session, verification and shared rate-limit tables. `conversation.schema.ts` defines direct conversations with two required participant IDs and a transactional message-sequence counter. `message.schema.ts` defines messages and their pending delivery outbox. Add future domain schemas as separate `*.schema.ts` files in that folder; Drizzle discovers them through its configured glob. Apply reviewed migrations under `apps/server/drizzle/` with `pnpm db:migrate` before starting updated services.
+
+The Matrix integration has been removed. Migration `0004_matrix_oidc.sql` and its snapshot remain because it was already applied locally; never rewrite applied migration history. Its unused OAuth/JWT tables are retained, but no runtime code uses them. A future schema generation may propose dropping those tables: review that cleanup separately before applying it. Existing application users, sessions and direct conversations are unchanged. Retired Matrix Docker volumes and any existing `MATRIX_*` secrets in the ignored root `.env` are preserved for data recovery, not used by the application. Do not delete those volumes or credentials unless their stored history is no longer needed; Matrix history is not migrated into the custom backend.
 
 After defining or changing tables:
 
@@ -201,9 +203,20 @@ The smoke check confirms the frontend and all three backend identities through t
 
 Compose uses fixed development credentials and plaintext localhost HTTP. It is not a public production deployment. Before public deployment, configure TLS, real credentials, authentication, authorization, application limits, monitoring and backup/restore procedures. Docker images currently retain development tooling for this foundation; trim the runtime images when preparing deployment. `docker compose down` preserves database data; adding `-v` deletes it.
 
+### Message API
+
+Both endpoints require an active session and restrict access to conversation participants. Missing and inaccessible conversations return the same `404`. Responses use `Cache-Control: no-store`. Writes require an `Origin` matching `BETTER_AUTH_URL`.
+
+- `POST /api/conversations/:id/messages` accepts only `{ "clientMessageId": "<UUID>", "encryptedPayload": "<opaque client envelope>" }`. Payloads contain 1–8,192 characters and remain subject to the existing 16 KB HTTP body limit. The server does not encrypt, decrypt or verify that an envelope is actually encrypted; this storage API is not a completed E2EE implementation. Do not send real plaintext messages or private encryption keys.
+- A new send returns `201`; an identical retry returns `200` with the original message and timestamp. The client must persist and reuse the same UUID and identical envelope for retries, not re-encrypt on each attempt. Reusing a sender's UUID with different content or another conversation returns `409`. IDs are scoped to the authenticated sender, not the server instance.
+- The message, conversation counter and one outbox entry commit together before success is returned. Sends lock only their conversation row to allocate commit-ordered sequences. Failed transactions do not consume sequences. PostgreSQL uniqueness enforces duplicate prevention across instances. Outbox rows remain pending until a publisher is implemented; saving a message does not mean it was delivered to a recipient.
+- `GET /api/conversations/:id/messages?after=0&limit=20` returns `{ "messages": [...], "nextAfter": "<sequence>" | null }`, oldest first. `after` is exclusive and defaults to `0`; `limit` defaults to `20` and is capped at `100`. Sequences are decimal strings to preserve PostgreSQL bigint precision. When `nextAfter` is non-null, use it for the next page. Once caught up, retain the last received message's sequence for future catch-up; an empty page must not reset it. Concurrent later sends may appear on subsequent pages. No message purge is configured.
+
+Run `pnpm test:messages` from the host after starting the three-instance stack and applying migrations. It uses synthetic accounts, checks transaction rollback and cross-instance races, then abruptly kills and restarts `server-1` while the test runs on `server-2`. Do not run it against production. It cleans up its fixture messages and accounts; run integration suites sequentially because they restart instances.
+
 ### Next implementation steps
 
-Next settle message retention/recovery and end-to-end encryption versus server-readable storage before implementing durable messages, idempotency and history pagination. Reuse conversation IDs and server-side participant checks. Reconnect synchronization, presence, typing, metrics and release qualification follow; group storage, management and large-group policies remain separate work.
+Next validate a maintained, browser-compatible encryption implementation and prove multi-device linking, revocation and history recovery. Encryption and decryption must remain client-side; indefinite ciphertext retention alone does not guarantee recoverable history. Then publish pending outbox messages through authenticated sockets with cross-instance routing, add gap-free client synchronization, shared presence, typing, metrics and load qualification. Group storage, management and large-group policies remain separate work.
 
 ## Documentation
 

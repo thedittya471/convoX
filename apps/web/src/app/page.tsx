@@ -45,7 +45,7 @@ export default function Home() {
           <>
             <p className="eyebrow">Your account</p>
             <h1 id="home-heading">Welcome, {session.user.name}</h1>
-            <p className="muted break-words">Signed in as {session.user.email}</p>
+            <p className="muted wrap-break-word">Signed in as {session.user.email}</p>
             <div className="account-notice">
               <h2>You’re all set.</h2>
               <p>Your account is ready. Conversations are coming next.</p>

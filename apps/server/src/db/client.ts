@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import { config } from "../utils/config.js";
 import * as authSchema from "./schema/auth.schema.js";
 import * as conversationSchema from "./schema/conversation.schema.js";
+import * as messageSchema from "./schema/message.schema.js";
 
 export const pool = new Pool({
   connectionString: config.DATABASE_URL,
@@ -17,6 +18,7 @@ pool.on("error", () => console.error(JSON.stringify({ event: "database_pool_erro
 export const db = drizzle(pool, {
   schema: {
     ...authSchema,
-    ...conversationSchema
+    ...conversationSchema,
+    ...messageSchema
   }
 });

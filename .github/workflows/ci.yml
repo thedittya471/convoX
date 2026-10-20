@@ -25,6 +25,7 @@ jobs:
       - run: pnpm test:smoke
       - run: pnpm test:auth
       - run: pnpm test:conversations
+      - run: pnpm test:messages
       - if: failure()
         run: docker compose --profile stack logs --tail=100
       - if: always()

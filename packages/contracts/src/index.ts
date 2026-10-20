@@ -45,3 +45,36 @@ export const conversationListResponseSchema = z.object({
 });
 export type Conversation = z.infer<typeof conversationSchema>;
 export type ConversationListQuery = z.infer<typeof conversationListQuerySchema>;
+
+export const createMessageSchema = z.object({
+  clientMessageId: z.uuid(),
+  encryptedPayload: z.string().min(1).max(8192),
+}).strict();
+
+export const messageSequenceSchema = z.string().max(19).regex(/^(0|[1-9]\d{0,18})$/)
+  .refine((value) => value.length < 19 || value <= "9223372036854775807");
+
+export const messageListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  after: messageSequenceSchema.default("0"),
+}).strict();
+
+export const messageSchema = z.object({
+  id: z.uuid(),
+  conversationId: z.uuid(),
+  senderId: z.string().min(1),
+  clientMessageId: z.uuid(),
+  sequence: messageSequenceSchema.refine((value) => value !== "0"),
+  encryptedPayload: z.string().min(1).max(8192),
+  createdAt: z.iso.datetime({ precision: 3 }),
+});
+
+export const messageResponseSchema = z.object({ message: messageSchema });
+export const messageListResponseSchema = z.object({
+  messages: z.array(messageSchema),
+  nextAfter: messageSequenceSchema.nullable(),
+});
+
+export type CreateMessage = z.infer<typeof createMessageSchema>;
+export type Message = z.infer<typeof messageSchema>;
+export type MessageListQuery = z.infer<typeof messageListQuerySchema>;

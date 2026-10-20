@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { healthResponseSchema, usernameSchema, createConversationSchema, conversationListQuerySchema, conversationSchema } from "./index.js";
+import { healthResponseSchema, usernameSchema, createConversationSchema, conversationListQuerySchema, conversationSchema, createMessageSchema, messageListQuerySchema, messageSchema } from "./index.js";
 
 test("health responses require a known status and an instance identity", () => {
   assert.equal(healthResponseSchema.safeParse({ status: "ok", instanceId: "server-1" }).success, true);
@@ -43,4 +43,21 @@ test("usernames normalize case and reject invalid names", () => {
   for (const invalid of ["ab", "a".repeat(31), "hello world", " alice", "álîce", "alice@example.com"]) {
     assert.equal(usernameSchema.safeParse(invalid).success, false);
   }
+});
+
+test("message sends require a stable client ID and a bounded opaque payload", () => {
+  const body = { clientMessageId: "00000000-0000-4000-8000-000000000001", encryptedPayload: "opaque-client-envelope" };
+  assert.deepEqual(createMessageSchema.parse(body), body);
+  for (const invalid of [{}, { ...body, clientMessageId: "invalid" }, { ...body, encryptedPayload: "" }, { ...body, encryptedPayload: "a".repeat(8193) }, { ...body, senderId: "other-user" }]) {
+    assert.equal(createMessageSchema.safeParse(invalid).success, false);
+  }
+});
+
+test("message cursors preserve bigint precision and reject ambiguous pagination", () => {
+  assert.deepEqual(messageListQuerySchema.parse({}), { limit: 20, after: "0" });
+  assert.equal(messageListQuerySchema.parse({ after: "9223372036854775807" }).after, "9223372036854775807");
+  for (const invalid of [{ after: "9223372036854775808" }, { after: "01" }, { after: "-1" }, { after: "1.5" }, { after: ["1", "2"] }, { limit: 0 }, { limit: 101 }, { limit: ["1", "2"] }, { before: "2" }]) {
+    assert.equal(messageListQuerySchema.safeParse(invalid).success, false);
+  }
+  assert.equal(messageSchema.safeParse({ id: "00000000-0000-4000-8000-000000000001", conversationId: "00000000-0000-4000-8000-000000000002", senderId: "user-1", clientMessageId: "00000000-0000-4000-8000-000000000003", sequence: "9007199254740993", encryptedPayload: "opaque", createdAt: "2026-01-01T00:00:00.123Z" }).success, true);
 });

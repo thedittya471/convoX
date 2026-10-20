@@ -19,6 +19,7 @@
     "test:smoke": "node tests/integration/smoke.mjs",
     "test:auth": "docker compose exec -T server-1 node tests/integration/auth.mjs",
     "test:conversations": "docker compose exec -T server-1 node tests/integration/conversations.mjs",
+    "test:messages": "node tests/integration/messages.mjs",
     "db:generate": "pnpm --filter @convox/server db:generate",
     "db:migrate": "pnpm --filter @convox/server db:migrate"
   },
