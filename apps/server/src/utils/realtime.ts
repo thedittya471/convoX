@@ -35,7 +35,7 @@ export function createRealtimeServer(server: HttpServer): RealtimeServer {
       const identity = await auth.api.getSession({ headers: fromNodeHeaders(socket.request.headers) });
 
       if (!identity) {
-        return next(new Error("Sign in to receive messages."));
+        return next(Object.assign(new Error("Sign in to receive messages."), { data: { code: "UNAUTHENTICATED" } }));
       }
 
       socket.data = { userId: identity.user.id, sessionId: identity.session.id };
@@ -49,7 +49,7 @@ export function createRealtimeServer(server: HttpServer): RealtimeServer {
   io.on("connection", async (socket) => {
 
     await socket.join(`user:${socket.data.userId}`);
-    socket.emit("realtime:ready", { instanceId: config.INSTANCE_ID });
+    socket.emit("realtime:ready", { instanceId: config.INSTANCE_ID, userId: socket.data.userId });
   });
 
   io.on("message:dispatch", async (message, participants, acknowledge) => {
@@ -91,6 +91,7 @@ async function deliverLocally(io: RealtimeServer, message: Message, participants
     if (activeIds.has(socket.data.sessionId)) {
       socket.emit("message:created", message);
     } else {
+      socket.emit("auth:required");
       socket.disconnect(true);
     }
   }

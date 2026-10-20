@@ -81,6 +81,7 @@ export type MessageListQuery = z.infer<typeof messageListQuerySchema>;
 
 export type RealtimeEvents = {
   "message:created": (message: Message) => void;
-  "realtime:ready": (value: { instanceId: string }) => void;
+  "realtime:ready": (value: { instanceId: string; userId: string }) => void;
+  "auth:required": () => void;
   "sync:required": () => void;
 };

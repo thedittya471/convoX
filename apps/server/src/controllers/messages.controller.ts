@@ -16,6 +16,10 @@ export async function sendMessage(request: Request, response: Response) {
       return response.status(401).json({ error: "Sign in to send messages." });
     }
 
+    if (request.get("X-Expected-User-Id") && request.get("X-Expected-User-Id") !== session.user.id) {
+      return response.status(403).json({ error: "The signed-in account has changed." });
+    }
+
     if (request.get("Origin") !== new URL(config.BETTER_AUTH_URL).origin) {
       return response.status(403).json({ error: "Invalid request origin." });
     }
@@ -54,6 +58,10 @@ export async function getMessages(request: Request, response: Response) {
 
     if (!session) {
       return response.status(401).json({ error: "Sign in to view messages." });
+    }
+
+    if (request.get("X-Expected-User-Id") && request.get("X-Expected-User-Id") !== session.user.id) {
+      return response.status(403).json({ error: "The signed-in account has changed." });
     }
 
     const id = conversationSchema.shape.id.safeParse(request.params.id);
