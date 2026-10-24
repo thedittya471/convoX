@@ -117,6 +117,11 @@ async function run() {
     assert.ok(messages.every((item) => JSON.stringify(item) === JSON.stringify(first)));
     assert.equal(first.sequence, "1");
     assert.equal(first.senderId, alice.id);
+    for (const server of [...servers].reverse()) {
+      const reversed = await request(path, { actor: alice, body, server });
+      assert.equal(reversed.status, 200);
+      assert.deepEqual(await readMessage(reversed), first, "reversed replica retries preserve the canonical response");
+    }
     assert.equal((await request(path, { actor: alice, body: { ...body, encryptedPayload: "different" } })).status, 409);
 
     const otherChat = await request("/api/conversations", { actor: alice, body: { otherUserId: outsider.id } });

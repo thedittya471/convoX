@@ -217,9 +217,13 @@ async function run() {
     const privateMessage = (await afterLogout.json()).message;
     await until(() => !second.socket.connected, "revoked sessions must be disconnected before further delivery");
     assert.equal(second.socket.received.some((item) => item.id === privateMessage.id), false);
+    assert.equal((await request(path, bob, undefined, servers[0])).status, 401);
+    assert.equal((await request(path, bob, { clientMessageId: randomUUID(), encryptedPayload: "revoked" }, servers[1])).status, 401);
     const revoked = connect(bob, servers[2]);
     await assert.rejects(revoked.ready);
     await pool.query('UPDATE "session" SET expires_at = NOW() - INTERVAL \'1 second\' WHERE user_id = $1', [outsider.id]);
+    assert.equal((await request(path, outsider, undefined, servers[0])).status, 401);
+    assert.equal((await request(path, outsider, { clientMessageId: randomUUID(), encryptedPayload: "expired" }, servers[2])).status, 401);
     const expired = connect(outsider, servers[1]);
     await assert.rejects(expired.ready);
     assert.deepEqual(stranger.socket.received, [], "a client-supplied room name must not expose another user's messages");

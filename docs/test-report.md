@@ -226,3 +226,19 @@ listener when each client connects; query/transaction failures still reject and
 readiness still fails closed. The corrected outage regression verifies both
 remote replicas become ready again without restarting them. `pnpm check` and the
 final outage run passed. This closes the observed process-exit race.
+
+## Task 28: correctness assertion map (2026-10-24)
+
+[Functional requirement map](correctness-coverage.md) links FR-01–FR-12 to actual
+assertions. Added canonical-response checks while retrying in reverse replica
+order, and explicit revoked/expired-session HTTP read/send rejection alongside
+existing socket rejection. Message and realtime scripts passed. Initial client
+qualification used stale frontend code inside a cached image; rerun mounts the
+current web source, tests, server output, contracts and migrations explicitly.
+Task 14 browser evidence remains open, so Task 28 is script-qualified only.
+
+Final current-source client synchronization passed, including held-history/live
+overlap, stable uncertain-send retries, instance-crash catch-up, independent views,
+activity, account switches and restoration generation resets. Its single applied
+receipt sample was 49.27 ms; this is not a load percentile. `pnpm check` passed
+with the Task 27 backend fix; Task 28 adds script assertions/documentation only.
