@@ -25,7 +25,8 @@
     "db:generate": "pnpm --filter @convox/server db:generate",
     "db:migrate": "pnpm --filter @convox/server db:migrate",
     "test:presence": "node tests/integration/activity.mjs",
-    "test:typing": "node tests/integration/activity.mjs typing"
+    "test:typing": "node tests/integration/activity.mjs typing",
+    "test:limits": "docker compose exec -T server-2 node tests/integration/rate-limits.mjs"
   },
   "keywords": [],
   "author": "",

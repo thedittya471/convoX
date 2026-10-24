@@ -1,6 +1,7 @@
 import express from "express";
 import { toNodeHandler } from "better-auth/node";
 import type { HealthResponse } from "@convox/contracts";
+import { limitChatIp } from "./utils/rate-limit.js";
 import { config } from "./utils/config.js";
 import { pool } from "./db/client.js";
 import { auth } from "./utils/auth.js";
@@ -11,7 +12,10 @@ import { publisher, subscriber } from "./utils/redis.js";
 const app = express();
 
 app.disable("x-powered-by");
+// Only the private, firewalled gateway may supply forwarded client addresses.
+app.set("trust proxy", "loopback, linklocal, uniquelocal");
 app.all("/api/auth/*splat", toNodeHandler(auth));
+app.use(["/api/users", "/api/conversations"], limitChatIp);
 app.use(express.json({ limit: "16kb" }));
 app.use("/api/users", usersRouter);
 app.use("/api/conversations", conversationsRouter);

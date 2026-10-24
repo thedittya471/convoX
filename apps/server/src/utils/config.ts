@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 const configSchema = z.object({
+  CHAT_IP_PER_MINUTE: z.coerce.number().int().min(1).max(1000000).default(300),
+  CHAT_SENDS_PER_MINUTE: z.coerce.number().int().min(1).max(1000000).default(120),
+  CHAT_LOOKUPS_PER_MINUTE: z.coerce.number().int().min(1).max(1000000).default(60),
+  CHAT_OPENS_PER_MINUTE: z.coerce.number().int().min(1).max(1000000).default(30),
+  CHAT_READS_PER_MINUTE: z.coerce.number().int().min(1).max(1000000).default(120),
   SMTP_HOST: z.string().min(1).optional(),
   SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
   SMTP_USER: z.string().min(1).optional(),
