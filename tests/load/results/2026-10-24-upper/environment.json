@@ -1,0 +1,1229 @@
+{
+  "commit": "7bb17c4f9f5ad802d0a43bff40dbd4ca7bd5348d",
+  "node": "v24.22.1",
+  "platform": "darwin",
+  "release": "27.0.0",
+  "cpu": "Apple M4",
+  "cpuCount": 10,
+  "memory": 17179869184,
+  "docker": "29.4.3 CPUs=10 Memory=8321712128 Kernel=6.12.76-linuxkit",
+  "topology": "one local Docker VM; three application replicas, NGINX, PostgreSQL 17, Redis 8; direct private HTTP sends and sockets",
+  "resourceSamples": [
+    {
+      "at": "2026-10-24T11:30:22.088Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "32.81%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "3.19%",
+          "MemUsage": "252.9MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "422kB / 634kB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "33.21%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "2.80%",
+          "MemUsage": "222MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "874kB / 1.01MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "33.14%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "2.77%",
+          "MemUsage": "219.6MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "384kB / 578kB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:30:32.098Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "21.11%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "3.11%",
+          "MemUsage": "247MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "4.06MB / 7.45MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "21.38%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "3.34%",
+          "MemUsage": "264.7MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "4.54MB / 7.83MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "25.46%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "2.96%",
+          "MemUsage": "235.1MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "3.65MB / 6.62MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:30:42.105Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "18.27%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "3.48%",
+          "MemUsage": "276MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "7.5MB / 14.4MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "22.85%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "3.79%",
+          "MemUsage": "300.8MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "8.38MB / 15.6MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "18.33%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "3.37%",
+          "MemUsage": "267.6MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "7.48MB / 14.3MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:30:51.109Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "77.60%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "3.73%",
+          "MemUsage": "295.7MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "11.3MB / 22.1MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "63.76%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.01%",
+          "MemUsage": "318.2MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "11.8MB / 22.5MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "70.34%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "3.60%",
+          "MemUsage": "286MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "11.3MB / 22.1MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:31:01.132Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "34.76%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.01%",
+          "MemUsage": "317.9MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "15.1MB / 29.8MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "38.31%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.03%",
+          "MemUsage": "319.8MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "15.6MB / 30.2MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "34.05%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "3.82%",
+          "MemUsage": "303.4MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "15.1MB / 29.7MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:31:12.102Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "16.06%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.23%",
+          "MemUsage": "336.1MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "19.4MB / 38.3MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "27.20%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.04%",
+          "MemUsage": "320.3MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "19.4MB / 37.8MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "27.48%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.04%",
+          "MemUsage": "320.3MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "18.9MB / 37.4MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:31:22.106Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "16.01%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.20%",
+          "MemUsage": "333.1MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "23.1MB / 46MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "61.66%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.10%",
+          "MemUsage": "325.4MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "23.2MB / 45.5MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "17.02%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.28%",
+          "MemUsage": "339.7MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "23MB / 45.9MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:31:32.108Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "29.66%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.22%",
+          "MemUsage": "334.7MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "27MB / 53.8MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "32.45%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.06%",
+          "MemUsage": "322.2MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "27.3MB / 53.9MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "18.56%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.47%",
+          "MemUsage": "354.6MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "26.4MB / 52.8MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:31:42.105Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.90%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.24%",
+          "MemUsage": "336.7MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "30.3MB / 60.7MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "26.01%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.02%",
+          "MemUsage": "319MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "31.1MB / 61.6MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "26.27%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.49%",
+          "MemUsage": "356.5MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "30.6MB / 61.2MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:31:52.113Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "16.72%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.26%",
+          "MemUsage": "337.9MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "34.1MB / 68.3MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "29.43%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.03%",
+          "MemUsage": "319.6MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "34.8MB / 69.3MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "18.49%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.50%",
+          "MemUsage": "356.9MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "34MB / 68.1MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:32:02.115Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "26.70%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.27%",
+          "MemUsage": "338.7MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "38.3MB / 76.8MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "27.10%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.06%",
+          "MemUsage": "322MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "38.6MB / 77MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "16.78%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.49%",
+          "MemUsage": "356.7MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "37.7MB / 75.8MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:32:11.246Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "17.95%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.25%",
+          "MemUsage": "337.3MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "41.7MB / 83.8MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "17.05%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.08%",
+          "MemUsage": "324.2MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "42MB / 84MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "17.32%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.49%",
+          "MemUsage": "356.7MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "41.5MB / 83.6MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:32:22.118Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.92%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.26%",
+          "MemUsage": "338.4MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "45.8MB / 92.2MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.36%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.10%",
+          "MemUsage": "325.7MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "45.7MB / 91.5MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "16.11%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.49%",
+          "MemUsage": "356.7MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "45.6MB / 91.9MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:32:31.106Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "16.60%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.24%",
+          "MemUsage": "336.3MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "49.1MB / 99MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "16.20%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.07%",
+          "MemUsage": "323.4MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "49.6MB / 99.3MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "17.07%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.56%",
+          "MemUsage": "361.7MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "48.9MB / 98.7MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:32:42.115Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "14.54%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.24%",
+          "MemUsage": "336.4MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "52.9MB / 107MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "24.71%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.07%",
+          "MemUsage": "323.4MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "53.7MB / 108MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "22.80%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.56%",
+          "MemUsage": "361.7MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "53.1MB / 107MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:32:52.115Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "16.17%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.25%",
+          "MemUsage": "337.1MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "57MB / 115MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.23%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.07%",
+          "MemUsage": "323.4MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "57.5MB / 115MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.34%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.56%",
+          "MemUsage": "361.8MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "56.4MB / 114MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:33:01.124Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "14.74%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.25%",
+          "MemUsage": "337.4MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "60.4MB / 122MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "14.73%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.09%",
+          "MemUsage": "324.2MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "60.9MB / 122MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "25.30%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.56%",
+          "MemUsage": "362.1MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "60.2MB / 122MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:33:12.120Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "14.08%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.27%",
+          "MemUsage": "338.9MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "64.1MB / 130MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.43%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.08%",
+          "MemUsage": "324.1MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "65MB / 131MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.57%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.58%",
+          "MemUsage": "363.2MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "64.4MB / 130MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:33:22.122Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.68%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.35%",
+          "MemUsage": "345.4MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "68.3MB / 138MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "14.40%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.29%",
+          "MemUsage": "340.6MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "68.4MB / 138MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "16.51%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.58%",
+          "MemUsage": "363.4MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "67.7MB / 137MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:33:32.124Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "14.51%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.35%",
+          "MemUsage": "345.4MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "71.6MB / 145MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "14.76%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.33%",
+          "MemUsage": "344MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "72.6MB / 146MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.39%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.58%",
+          "MemUsage": "363.6MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "71.8MB / 146MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:33:41.125Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "16.50%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.38%",
+          "MemUsage": "347.2MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "75.4MB / 153MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.33%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.34%",
+          "MemUsage": "344.2MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "75.9MB / 153MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.73%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.58%",
+          "MemUsage": "363.6MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "75.2MB / 152MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:33:52.133Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "16.25%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.38%",
+          "MemUsage": "347.5MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "79.1MB / 161MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.62%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.34%",
+          "MemUsage": "344.8MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "80.1MB / 162MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "16.56%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.58%",
+          "MemUsage": "363.4MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "79.3MB / 161MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:34:02.142Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "16.86%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.39%",
+          "MemUsage": "348.4MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "83.3MB / 169MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "16.57%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.34%",
+          "MemUsage": "344.6MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "83.8MB / 169MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "17.22%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.58%",
+          "MemUsage": "363.5MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "82.7MB / 168MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:34:12.125Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.38%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.44%",
+          "MemUsage": "352MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "87MB / 177MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.49%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.34%",
+          "MemUsage": "344.5MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "87.6MB / 177MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.21%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.58%",
+          "MemUsage": "363.7MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "86.4MB / 175MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:34:22.146Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.84%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.43%",
+          "MemUsage": "351.8MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "90.8MB / 184MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "26.70%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.34%",
+          "MemUsage": "344.5MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "90.9MB / 184MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.96%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.58%",
+          "MemUsage": "363.5MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "90.5MB / 184MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:34:32.143Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "17.94%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.43%",
+          "MemUsage": "351.8MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "94.5MB / 192MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "17.72%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.60%",
+          "MemUsage": "364.7MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "95.1MB / 192MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "43.47%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.58%",
+          "MemUsage": "363.9MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "93.9MB / 191MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:34:42.135Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "25.90%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.43%",
+          "MemUsage": "351.8MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "97.9MB / 199MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "16.61%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.81%",
+          "MemUsage": "381.5MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "98.8MB / 200MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "21.38%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.58%",
+          "MemUsage": "363.8MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "98MB / 199MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:34:52.125Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "29.04%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.43%",
+          "MemUsage": "351.8MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "102MB / 207MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "14.34%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.81%",
+          "MemUsage": "381.5MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "103MB / 208MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "16.73%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.58%",
+          "MemUsage": "363.6MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "102MB / 207MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:35:02.139Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "25.44%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.43%",
+          "MemUsage": "351.8MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "106MB / 215MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "26.23%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.81%",
+          "MemUsage": "381.5MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "106MB / 215MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "16.45%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.59%",
+          "MemUsage": "364MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "105MB / 214MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:35:12.139Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "27.69%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.57%",
+          "MemUsage": "362.5MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "109MB / 223MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "26.90%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.81%",
+          "MemUsage": "381.8MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "110MB / 223MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.61%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.58%",
+          "MemUsage": "363.6MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "109MB / 221MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:35:21.135Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.85%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.60%",
+          "MemUsage": "364.8MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "113MB / 230MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "15.02%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.81%",
+          "MemUsage": "381.7MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "113MB / 230MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "14.98%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.58%",
+          "MemUsage": "363.6MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "113MB / 229MB",
+          "PIDs": "12"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-24T11:35:32.137Z",
+      "rows": [
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "28.27%",
+          "Container": "convox-release-server-1-1",
+          "ID": "e3731050d1ac",
+          "MemPerc": "4.60%",
+          "MemUsage": "365MiB / 7.75GiB",
+          "Name": "convox-release-server-1-1",
+          "NetIO": "117MB / 238MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "28.65%",
+          "Container": "convox-release-server-2-1",
+          "ID": "06ca77232916",
+          "MemPerc": "4.82%",
+          "MemUsage": "382.7MiB / 7.75GiB",
+          "Name": "convox-release-server-2-1",
+          "NetIO": "117MB / 238MB",
+          "PIDs": "12"
+        },
+        {
+          "BlockIO": "0B / 0B",
+          "CPUPerc": "17.15%",
+          "Container": "convox-release-server-3-1",
+          "ID": "3e4a1b270f70",
+          "MemPerc": "4.59%",
+          "MemUsage": "364MiB / 7.75GiB",
+          "Name": "convox-release-server-3-1",
+          "NetIO": "116MB / 237MB",
+          "PIDs": "12"
+        }
+      ]
+    }
+  ]
+}

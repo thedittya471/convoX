@@ -1,0 +1,34 @@
+{
+  "offered": 30000,
+  "accepted": 30000,
+  "rejected": 0,
+  "uncertain": 0,
+  "retries": 0,
+  "timeouts": 0,
+  "requestErrors": 0,
+  "missing": 0,
+  "transportDuplicates": 0,
+  "storedDuplicates": 0,
+  "crossInstanceSamples": 100000,
+  "latencyMs": {
+    "min": 3.195750000013504,
+    "p50": 53.022624999983236,
+    "p95": 100.22741599997971,
+    "p99": 123.00229199999012,
+    "max": 445.7108750000043
+  },
+  "connections": 1000,
+  "distribution": [
+    334,
+    333,
+    333
+  ],
+  "connectedAtEnd": 1000,
+  "rate": 100,
+  "seconds": 300,
+  "warmup": 10,
+  "seed": "convox-20261024",
+  "offeredElapsedMs": 300000.536721,
+  "driverOverload": 0,
+  "passed": true
+}

@@ -114,3 +114,24 @@ actual deployment artifacts. This run uses direct private service traffic and
 synthetic source IPs; it does not establish gateway/TLS capacity, NAT limits,
 real browser behavior, upper-profile performance or failure-under-load recovery.
 Tasks 31/32 are separate and were not executed.
+
+## Task 31 local upper profile (2026-10-24): passed
+
+Commit `7bb17c4f9f5ad802d0a43bff40dbd4ca7bd5348d`, same local Docker topology
+and unchanged default per-account policies as the baseline. After ten seconds
+of warmup, 1,000 sockets (334/333/333) sustained 100 new logical messages/second
+for 300,000.54 ms. All 30,000 offered messages were accepted and reconciled with
+storage; all 150,000 expected recipient receipts arrived. There were zero
+rejections, uncertain outcomes, retries, timeouts, request errors, missing
+storage/receipts, stored duplicates, transport duplicates or driver overloads.
+All 1,000 sockets remained connected.
+
+100,000 cross-instance samples: min 3.20 ms, p50 53.02 ms, p95 100.23 ms,
+p99 123.00 ms, maximum 445.71 ms. Independent artifact inspection verified
+unique canonical IDs, every recipient receipt and reproduced p95. Sampled CPU
+peaks per replica were 77.60%, 63.76%, 70.34%; sampled memory peaks were
+365.0, 382.7, 364.0 MiB. No capacity bottleneck was demonstrated within this
+five-minute envelope; these measurements do not establish unlimited capacity or
+long-duration memory behavior. See committed `2026-10-24-upper` raw, environment
+and summary artifacts beside the baseline. Public staging/TLS/gateway capacity
+and real-browser rendering remain unqualified.
