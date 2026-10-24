@@ -95,6 +95,7 @@ export type Message = z.infer<typeof messageSchema>;
 export type MessageListQuery = z.infer<typeof messageListQuerySchema>;
 
 export type RealtimeEvents = {
+  "typing:changed": (value: TypingSnapshot) => void;
   "presence:changed": (value: PresenceSnapshot) => void;
   "message:created": (message: Message, generation?: string) => void;
   "realtime:ready": (value: { instanceId: string; userId: string; generation?: string }) => void;
@@ -102,13 +103,20 @@ export type RealtimeEvents = {
   "sync:required": () => void;
 };
 
-// Leases expire after 20 seconds; a 5-second observer poll leaves crash detection below 30 seconds.
-export const activityTiming = { leaseMs: 20000, pollMs: 5000, typingMs: 6000, typingThrottleMs: 2000 } as const;
+// Leases expire after 20 seconds; a 2-second observer poll leaves crash detection below 30 seconds.
+export const activityTiming = { leaseMs: 20000, pollMs: 2000, typingMs: 6000, typingThrottleMs: 2000 } as const;
 export const activityWatchSchema = z.object({ conversationId: z.uuid() }).strict();
 export const presenceSnapshotSchema = activityWatchSchema.extend({
   state: z.enum(["online", "offline", "unavailable"]),
 });
 export type PresenceSnapshot = z.infer<typeof presenceSnapshotSchema>;
 export type ActivityCommands = {
+  "typing:set": (value: { conversationId: string; active: boolean }) => void;
   "activity:watch": (value: { conversationId: string }) => void;
 };
+
+export const typingCommandSchema = activityWatchSchema.extend({ active: z.boolean() }).strict();
+export const typingSnapshotSchema = activityWatchSchema.extend({
+  expiresInMs: z.number().int().min(0).max(activityTiming.typingMs),
+});
+export type TypingSnapshot = z.infer<typeof typingSnapshotSchema>;

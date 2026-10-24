@@ -89,3 +89,11 @@ test("presence subscriptions are bounded and snapshots distinguish unavailable",
   for (const state of ["online", "offline", "unavailable"]) assert.equal(presenceSnapshotSchema.safeParse({ conversationId, state }).success, true);
   assert.ok(activityTiming.leaseMs + activityTiming.pollMs < 30000);
 });
+
+test("typing commands are strict and expiry snapshots are bounded", async () => {
+  const { typingCommandSchema, typingSnapshotSchema } = await import("./index.js");
+  const conversationId = "00000000-0000-4000-8000-000000000001";
+  for (const active of [true, false]) assert.equal(typingCommandSchema.safeParse({ conversationId, active }).success, true);
+  for (const value of [{ conversationId, active: 1 }, { conversationId, active: true, userId: "other" }]) assert.equal(typingCommandSchema.safeParse(value).success, false);
+  for (const expiresInMs of [-1, 6001, 1.5]) assert.equal(typingSnapshotSchema.safeParse({ conversationId, expiresInMs }).success, false);
+});

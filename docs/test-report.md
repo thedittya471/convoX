@@ -136,3 +136,7 @@ Added the connection-owned Redis lease decision and bounded watch/snapshot schem
 ## Task 17: participant presence UI
 
 `pnpm check` passed; the subsequent focused web suite passed 37 tests (47 units including contracts). `pnpm test:presence` passed again against the isolated three-replica stack with periodic snapshots. Added client assertions for conversation filtering, owned subscription cleanup, disconnect invalidation and silence expiry using a mocked timer. Chat exposes textual online/offline/unavailable state in a polite status region and disclaims receipt/reading. Real-browser/tab and focus/layout checks remain unverified at the owner's request.
+
+## Task 18: authorized expiring typing
+
+`pnpm check` passed (48 units); final server build and lint passed after the stop throttle and atomic key-expiry handling. `pnpm test:typing` passed against the isolated three-replica stack: outsider/malformed input, explicit stop, a 100-event throttled burst followed by inactivity, independent tabs, abrupt final-sender crash, Redis loss/recovery without replay, and zero message rows. Polling is now two seconds, typing leases last six seconds; healthy observers learn expiry within eight seconds. Atomic key TTL follows the latest remaining token so one connection cannot shorten another's lease. No database migration or new dependency.
