@@ -6,10 +6,12 @@ import { config } from "./config.js";
 import { publisher } from "./redis.js";
 
 const proxies = new BlockList();
-for (const [address, prefix] of [["127.0.0.0", 8], ["10.0.0.0", 8], ["172.16.0.0", 12], ["192.168.0.0", 16], ["169.254.0.0", 16]] as const) proxies.addSubnet(address, prefix);
-proxies.addAddress("::1", "ipv6");
-proxies.addSubnet("fc00::", 7, "ipv6");
-proxies.addSubnet("fe80::", 10, "ipv6");
+for (const entry of config.TRUSTED_PROXY_CIDRS.split(",")) {
+  const [address, prefix] = entry.trim().split("/");
+  const family = address.includes(":") ? "ipv6" : "ipv4";
+  if (prefix === undefined) proxies.addAddress(address, family);
+  else proxies.addSubnet(address, Number(prefix), family);
+}
 export function socketIp(request: IncomingMessage) {
   const remote = (request.socket.remoteAddress ?? "unknown").replace(/^::ffff:/, "");
   if (!proxies.check(remote, remote.includes(":") ? "ipv6" : "ipv4")) return remote;

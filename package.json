@@ -26,6 +26,7 @@
     "db:migrate": "pnpm --filter @convox/server db:migrate",
     "test:presence": "node tests/integration/activity.mjs",
     "test:typing": "node tests/integration/activity.mjs typing",
+    "test:production": "node tests/config/production.mjs",
     "test:gateway": "node tests/integration/gateway.mjs",
     "test:metrics": "docker compose exec -T server-2 node tests/integration/metrics.mjs",
     "test:sockets": "docker compose exec -T server-2 node tests/integration/socket-limits.mjs",

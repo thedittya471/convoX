@@ -38,7 +38,7 @@ app.get("/internal/metrics", async (request, response) => {
   }
 });
 // Only the private, firewalled gateway may supply forwarded client addresses.
-app.set("trust proxy", "loopback, linklocal, uniquelocal");
+app.set("trust proxy", config.TRUSTED_PROXY_CIDRS.split(",").map((entry) => entry.trim()));
 app.use(async (request, response, next) => {
   if (!request.path.startsWith("/api/") || request.path.startsWith("/api/health/") || await httpReady()) return next();
   response.set({ "Cache-Control": "no-store", "Retry-After": "1", "X-Convox-Not-Accepted": "1" }).status(503).json({ error: "This instance is not ready. Retry with the same message ID." });
