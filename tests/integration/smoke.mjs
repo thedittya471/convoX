@@ -23,6 +23,14 @@ for (const [path, heading] of [["/login", "Welcome back"], ["/signup", "Create y
   assert.equal(response.status, 200, `${path} must be available through NGINX`);
   assert.ok((await response.text()).includes(heading), `${path} must render its auth heading`);
 }
+for (const path of ["/forgot-password", "/reset-password"]) {
+  const response = await fetch(`${baseUrl}${path}`, { signal: AbortSignal.timeout(5000) });
+  assert.equal(response.status, 200, `${path} must be available through NGINX`);
+  if (path === "/reset-password") {
+    assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+    assert.match(response.headers.get("cache-control") ?? "", /no-store/);
+  }
+}
 const instances = new Set();
 for (let attempt = 0; attempt < 12; attempt += 1) {
   const response = await fetch(`${baseUrl}/api/health/ready`, { signal: AbortSignal.timeout(3000) });

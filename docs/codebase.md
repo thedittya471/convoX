@@ -13,11 +13,12 @@ Start with the request flow below. The project has one Express backend, one Next
 | Verified sessions | `apps/server/src/utils/verified-session.ts` | Shared HTTP login/verification guard; returns a session or sends the existing error response. |
 | Database operations | `apps/server/src/services/` | Authorized queries, transactions, pagination and idempotency. |
 | Database structure | `apps/server/src/db/schema/`, `apps/server/drizzle/` | Drizzle tables and committed migrations. |
-| Authentication | `apps/server/src/utils/auth.ts` | Better Auth setup, verification tokens, callback checks and shared resend limits. |
-| Email delivery | `apps/server/src/utils/email.ts` | Send verification mail through the configured SMTP server. |
+| Authentication | `apps/server/src/utils/auth.ts` | Better Auth setup, verification/reset tokens, transactional session revocation, callback checks and shared email limits. |
+| Email delivery | `apps/server/src/utils/email.ts` | Send verification and password reset mail through the configured SMTP server. |
 | Live delivery | `apps/server/src/utils/realtime.ts` | Authenticate sockets, route events across replicas and recheck sessions before local delivery. |
 | Startup/shutdown | `apps/server/src/index.ts` | Connect dependencies, start the outbox publisher and close resources. |
 | Login/signup UI | `apps/web/src/components/auth-form.tsx` | Shared form and auth error handling. |
+| Password recovery UI | `apps/web/src/components/password-recovery-form.tsx`, `apps/web/src/app/forgot-password/`, `apps/web/src/app/reset-password/` | Request/reset forms, confirmation, invalid-link recovery and fresh sign-in. |
 | Account UI | `apps/web/src/app/page.tsx` | Session state, verification resend/refresh and sign-out. |
 | Chat synchronization | `apps/web/src/lib/chat-client.ts` | History catch-up, ordered live events, retries and pending sends. Not yet connected to the UI. |
 | Local pending sends | `apps/web/src/lib/message-outbox.ts` | IndexedDB transactions scoped to the account and conversation. |

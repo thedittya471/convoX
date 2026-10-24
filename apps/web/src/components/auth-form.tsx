@@ -88,6 +88,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
               <p>{signup ? "A few details, and you’re ready to connect." : "Enter your email and password to access your account"}</p>
             </header>
             <Suspense><VerificationNotice /></Suspense>
+            {!signup && <p><Link href="/forgot-password">Forgot password?</Link></p>}
             {isPending || (session && !sessionError) ? <p role="status">{session ? "Taking you to your account…" : "Checking your session…"}</p> : sessionError ? (
               <>
                 <p role="alert" className="form-error">We couldn’t check your session. Please try again.</p>
