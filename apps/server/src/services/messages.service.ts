@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gt, lt, lte, or } from "drizzle-orm";
 import type { CreateMessage, Message, MessageListQuery } from "@convox/contracts";
 import { db } from "../db/client.js";
 import { conversation } from "../db/schema/conversation.schema.js";
+import { history } from "../db/schema/history.schema.js";
 import { message, messageOutbox } from "../db/schema/message.schema.js";
 
 export function serializeMessage(row: typeof message.$inferSelect): Message {
@@ -10,7 +11,7 @@ export function serializeMessage(row: typeof message.$inferSelect): Message {
   return { ...row, sequence: row.sequence.toString(), createdAt: row.createdAt.toISOString() };
 }
 
-export async function createMessage(userId: string, conversationId: string, input: CreateMessage) {
+export async function createMessage(userId: string, conversationId: string, input: CreateMessage, expectedGeneration?: string) {
 
   return db.transaction(async (transaction) => {
 
@@ -26,6 +27,11 @@ export async function createMessage(userId: string, conversationId: string, inpu
       return null;
     }
 
+    if (expectedGeneration) {
+      const [current] = await transaction.select().from(history).for("share");
+      if (!current) throw new Error("History generation is unavailable");
+      if (current.generation !== expectedGeneration) return { code: "HISTORY_RESET" as const, error: "History changed. Reload history before sending." };
+    }
     const sequence = chat.lastMessageSequence + 1n;
     const [inserted] = await transaction.insert(message)
       .values({ id: randomUUID(), conversationId, senderId: userId, ...input, sequence })
@@ -65,6 +71,12 @@ export async function listMessages(userId: string, conversationId: string, query
         or(eq(conversation.directUserLowId, userId), eq(conversation.directUserHighId, userId))));
     if (!chat) return null;
 
+    const [current] = await transaction.select().from(history);
+    if (!current) throw new Error("History generation is unavailable");
+    if ((query.generation && query.generation !== current.generation) ||
+      (!query.generation && (query.before !== undefined || (query.after !== undefined && query.after !== "0")))) {
+      return { code: "HISTORY_RESET" as const, error: "History changed or the checkpoint has no generation. Reload history; pending sends are preserved." };
+    }
     const backwards = query.recent !== undefined || query.before !== undefined;
     const cursor = BigInt(query.before ?? query.after ?? "0");
     if (cursor > chat.head) return { code: "CURSOR_AHEAD" as const, error: "The cursor exceeds the current history. Rebuild history." };
@@ -94,6 +106,7 @@ export async function listMessages(userId: string, conversationId: string, query
       nextAfter: !backwards && more ? page[page.length - 1].sequence.toString() : null,
       nextBefore: backwards && more ? page[0].sequence.toString() : null,
       headSequence: chat.head.toString(),
+      generation: current.generation,
     };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }

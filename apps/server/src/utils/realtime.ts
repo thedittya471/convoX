@@ -8,6 +8,7 @@ import { auth } from "./auth.js";
 import { config } from "./config.js";
 import { publisher, subscriber } from "./redis.js";
 import { db } from "../db/client.js";
+import { history } from "../db/schema/history.schema.js";
 import { session, user } from "../db/schema/auth.schema.js";
 
 type ClusterEvents = {
@@ -50,8 +51,14 @@ export function createRealtimeServer(server: HttpServer): RealtimeServer {
 
   io.on("connection", async (socket) => {
 
-    await socket.join(`user:${socket.data.userId}`);
-    socket.emit("realtime:ready", { instanceId: config.INSTANCE_ID, userId: socket.data.userId });
+    try {
+      const [current] = await db.select().from(history);
+      if (!current) throw new Error("History generation is unavailable");
+      await socket.join(`user:${socket.data.userId}`);
+      socket.emit("realtime:ready", { instanceId: config.INSTANCE_ID, userId: socket.data.userId, generation: current.generation });
+    } catch {
+      socket.disconnect(true);
+    }
   });
 
   io.on("message:dispatch", async (message, participants, acknowledge) => {
@@ -87,11 +94,13 @@ async function deliverLocally(io: RealtimeServer, message: Message, participants
 
   const active = await db.select({ id: session.id }).from(session).innerJoin(user, eq(user.id, session.userId))
     .where(and(inArray(session.id, [...new Set(sockets.map((socket) => socket.data.sessionId))]), gt(session.expiresAt, new Date()), eq(user.emailVerified, true)));
+  const [current] = await db.select().from(history);
+  if (!current) throw new Error("History generation is unavailable");
   const activeIds = new Set(active.map((row) => row.id));
 
   for (const socket of sockets) {
     if (activeIds.has(socket.data.sessionId)) {
-      socket.emit("message:created", message);
+      socket.emit("message:created", message, current.generation);
     } else {
       socket.emit("auth:required");
       socket.disconnect(true);

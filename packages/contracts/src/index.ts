@@ -59,6 +59,7 @@ export const messageListQuerySchema = z.object({
   after: messageSequenceSchema.optional(),
   before: messageSequenceSchema.refine((value) => value !== "0").optional(),
   recent: z.literal("true").optional(),
+  generation: z.uuid().optional(),
 }).strict().refine((value) => [value.after, value.before, value.recent].filter((item) => item !== undefined).length <= 1,
   "Choose only one pagination mode").transform((value) =>
   value.before === undefined && value.recent === undefined ? { ...value, after: value.after ?? "0" } : value);
@@ -81,10 +82,11 @@ export const messageListResponseSchema = z.object({
 
 export const messageHistoryPageSchema = messageListResponseSchema.extend({
   headSequence: messageSequenceSchema,
+  generation: z.uuid(),
   nextBefore: messageSequenceSchema.nullable(),
 });
 export const messageHistoryErrorSchema = z.object({
-  code: z.enum(["CURSOR_AHEAD", "HISTORY_UNAVAILABLE"]),
+  code: z.enum(["CURSOR_AHEAD", "HISTORY_UNAVAILABLE", "HISTORY_RESET"]),
   error: z.string().min(1),
 });
 
@@ -93,8 +95,8 @@ export type Message = z.infer<typeof messageSchema>;
 export type MessageListQuery = z.infer<typeof messageListQuerySchema>;
 
 export type RealtimeEvents = {
-  "message:created": (message: Message) => void;
-  "realtime:ready": (value: { instanceId: string; userId: string }) => void;
+  "message:created": (message: Message, generation?: string) => void;
+  "realtime:ready": (value: { instanceId: string; userId: string; generation?: string }) => void;
   "auth:required": () => void;
   "sync:required": () => void;
 };

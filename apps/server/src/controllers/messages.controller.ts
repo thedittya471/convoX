@@ -27,11 +27,13 @@ export async function sendMessage(request: Request, response: Response) {
       return response.status(400).json({ error: "Provide a valid conversation ID, client message ID and encrypted payload." });
     }
 
-    const result = await createMessage(session.user.id, id.data, parsed.data);
+    const result = await createMessage(session.user.id, id.data, parsed.data, request.get("X-History-Generation"));
 
     if (!result) {
       return response.status(404).json({ error: "Conversation not found." });
     }
+
+    if ("code" in result) return response.status(409).json(result);
 
     if (result.conflict) {
       return response.status(409).json({ error: "This client message ID was already used for a different message." });
@@ -71,7 +73,7 @@ export async function getMessages(request: Request, response: Response) {
     }
 
     if ("code" in result) {
-      return response.status(result.code === "CURSOR_AHEAD" ? 409 : 410).json(result);
+      return response.status(result.code === "HISTORY_UNAVAILABLE" ? 410 : 409).json(result);
     }
 
     return response.json(result);

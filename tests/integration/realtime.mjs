@@ -180,9 +180,9 @@ async function run() {
     await command(`CRASH_PUBLISHER:${pending.id}`);
     await until(async () => (await pool.query("SELECT published_at FROM message_outbox WHERE message_id = $1", [pending.id])).rows[0].published_at !== null, "recovered message must be marked published");
     assert.equal(syncRequired, true, "broker recovery must ask connected clients to synchronize history");
-    const history = await request(`${path}?after=${saved.sequence}`, bob, undefined, servers[2]);
+    const history = await request(`${path}?after=${saved.sequence}&generation=${(await pool.query("SELECT generation FROM history")).rows[0].generation}`, bob, undefined, servers[2]);
     assert.deepEqual((await history.json()).messages.map((item) => item.id), [pending.id]);
-    const recovered = await request(`${path}?after=${saved.sequence}`, alice, undefined, servers[1]);
+    const recovered = await request(`${path}?after=${saved.sequence}&generation=${(await pool.query("SELECT generation FROM history")).rows[0].generation}`, alice, undefined, servers[1]);
     assert.deepEqual((await recovered.json()).messages.map((item) => item.id), [pending.id], "both participants must recover the message even if they resubscribe after publication");
     const afterRecovery = await request(path, alice, { clientMessageId: randomUUID(), encryptedPayload: "opaque-after-recovery" }, servers[1]);
     assert.equal(afterRecovery.status, 201);

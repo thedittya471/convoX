@@ -73,7 +73,7 @@ test("recent and older history modes have exclusive bounded cursors", () => {
 
 
 test("history pages and recovery errors carry explicit boundaries", () => {
-  assert.equal(messageHistoryPageSchema.safeParse({ messages: [], nextAfter: null, nextBefore: null, headSequence: "0" }).success, true);
-  for (const code of ["CURSOR_AHEAD", "HISTORY_UNAVAILABLE"]) assert.equal(messageHistoryErrorSchema.safeParse({ code, error: "Rebuild history." }).success, true);
+  assert.equal(messageHistoryPageSchema.safeParse({ messages: [], nextAfter: null, nextBefore: null, headSequence: "0", generation: "00000000-0000-4000-8000-000000000001" }).success, true);
+  for (const code of ["CURSOR_AHEAD", "HISTORY_UNAVAILABLE", "HISTORY_RESET"]) assert.equal(messageHistoryErrorSchema.safeParse({ code, error: "Rebuild history." }).success, true);
   assert.equal(messageHistoryErrorSchema.safeParse({ code: "UNKNOWN", error: "Retry" }).success, false);
 });

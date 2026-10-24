@@ -42,11 +42,15 @@ async function run() {
   const suffix = randomUUID();
   const fixtureIp = `198.29.${randomBytes(1)[0]}.${randomBytes(1)[0]}`;
   const actors = [];
+  const originalGeneration = (await pool.query("SELECT generation FROM history")).rows[0].generation;
+  let generation = originalGeneration;
   const emails = Array.from({ length: 3 }, (_value, index) => `message-test-${suffix}-${index}@example.com`);
   const triggerName = `message_test_${suffix.replaceAll("-", "")}`;
 
   async function request(path, { actor, body, server = servers[0], requestOrigin = origin, expectedUserId } = {}) {
-    return fetch(`${server}${path}`, {
+    const url = new URL(`${server}${path}`);
+    if (path.includes("/messages") && body === undefined) url.searchParams.set("generation", generation);
+    return fetch(url, {
       method: body === undefined ? "GET" : "POST",
       headers: { "x-real-ip": fixtureIp, ...(actor ? { cookie: actor.cookie } : {}), ...(requestOrigin ? { origin: requestOrigin } : {}), ...(expectedUserId ? { "X-Expected-User-Id": expectedUserId } : {}), ...(body === undefined ? {} : { "content-type": "application/json" }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -99,9 +103,9 @@ async function run() {
     for (const query of ["?after=-1", "?after=01", "?after=9223372036854775808", "?after=1&after=2", "?limit=0", "?limit=101", "?limit=1&limit=2", "?userId=other", "?after=0&recent=true", "?before=0", "?before=2&after=0"]) {
       assert.equal((await request(`${path}${query}`, { actor: alice })).status, 400);
     }
-    assert.deepEqual(await readHistory(bob, id), { messages: [], nextAfter: null, nextBefore: null, headSequence: "0" });
+    assert.deepEqual(await readHistory(bob, id), { messages: [], nextAfter: null, nextBefore: null, headSequence: "0", generation });
 
-    assert.deepEqual(await readHistory(bob, id, "?recent=true"), { messages: [], nextAfter: null, nextBefore: null, headSequence: "0" });
+    assert.deepEqual(await readHistory(bob, id, "?recent=true"), { messages: [], nextAfter: null, nextBefore: null, headSequence: "0", generation });
     assert.equal((await request(`${path}?after=1`, { actor: alice })).status, 409);
     assert.equal((await request(`${path}?recent=true`, { actor: outsider })).status, 404);
 
@@ -217,8 +221,23 @@ async function run() {
     const retry = await request(path, { actor: alice, body, server: servers[0] });
     assert.equal(retry.status, 200);
     assert.deepEqual(await readMessage(retry), first, "restarted instance must return the original send");
+    const checkpoint = await readHistory(bob, id, "?recent=true");
+    generation = randomUUID();
+    await pool.query("UPDATE history SET generation = $1", [generation]);
+    const stale = await fetch(`${servers[0]}${path}?after=${checkpoint.headSequence}&generation=${checkpoint.generation}`, { headers: { cookie: bob.cookie } });
+    assert.equal(stale.status, 409);
+    assert.equal((await stale.json()).code, "HISTORY_RESET", "a numerically valid pre-restore checkpoint must be rejected");
+    const missingGeneration = await fetch(`${servers[0]}${path}?after=${checkpoint.headSequence}`, { headers: { cookie: bob.cookie } });
+    assert.equal(missingGeneration.status, 409);
+    const unauthorizedReset = await fetch(`${servers[0]}${path}?after=0&generation=${checkpoint.generation}`, { headers: { cookie: outsider.cookie } });
+    assert.equal(unauthorizedReset.status, 404);
+    assert.equal((await readHistory(bob, id, "?recent=true")).generation, generation);
+    const rejectedSend = await fetch(`${servers[0]}${path}`, { method: "POST", headers: { cookie: alice.cookie, origin, "content-type": "application/json", "X-History-Generation": checkpoint.generation }, body: JSON.stringify({ clientMessageId: randomUUID(), encryptedPayload: "stale-generation-send" }) });
+    assert.equal(rejectedSend.status, 409);
+    assert.equal((await rejectedSend.json()).code, "HISTORY_RESET");
     console.log("Message integration passed: authorization, atomic rollback/outbox, cross-instance retries/conflicts, recent/older bootstrap, recovery boundaries, indexed pagination, ordered catch-up, and persistence after an abrupt instance restart.");
   } finally {
+    await pool.query("UPDATE history SET generation = $1", [originalGeneration]);
     await pool.query(`DROP TRIGGER IF EXISTS ${triggerName} ON message_outbox`);
     await pool.query(`DROP FUNCTION IF EXISTS ${triggerName}()`);
     const ids = actors.map((actor) => actor.id);
