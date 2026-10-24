@@ -334,3 +334,5 @@ HTTP readiness now separates PostgreSQL/draining health from realtime Redis heal
 A separate [Docker-host deployment template](docs/deployment.md) provides TLS, private services, mounted secrets and digest-pinned input validation. Use `pnpm test:production` for synthetic configuration checks and `pnpm validate:production .env.production` for prepared deployment files. Real staging and release approval remain pending.
 
 Security review and dependency dispositions: [docs/security-review.md](docs/security-review.md). Local capacity/recovery evidence: [docs/load-recovery-report.md](docs/load-recovery-report.md).
+
+Release references: [HTTP/OpenAPI](docs/openapi.json), [realtime protocol](docs/realtime.md), [database](docs/database.md), [architecture and ADRs](docs/architecture.md).

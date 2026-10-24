@@ -40,7 +40,8 @@
     "test:outages": "node tests/integration/dependency-outage.mjs",
     "test:load": "node --test tests/load/accounting.test.mjs",
     "load": "node tests/load/run.mjs",
-    "test:security": "node tests/security/compressed-body.mjs"
+    "test:security": "node tests/security/compressed-body.mjs",
+    "test:api-reference": "docker compose exec -T server-2 node tests/integration/api-reference.mjs"
   },
   "keywords": [],
   "author": "",

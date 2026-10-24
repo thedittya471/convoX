@@ -252,3 +252,31 @@ self-tests. The final low-load dry run passed. The full 500-connection,
 cross-instance p95 100.97 ms. Raw artifacts and full limitations are in the
 [load report](load-recovery-report.md). Staging/real-browser release gates remain
 open; no production deployment or upper-profile qualification is claimed.
+
+## Tasks 31–35: local qualification and references (2026-10-24)
+
+Task 31's five-minute upper profile passed: 1,000 sockets, 100 new messages/s,
+30,000 accepts, 150,000 recipient receipts, p95 100.23 ms and no missing/duplicate
+records or receipts. Task 32's real-client failure envelopes passed at 500/50
+and 1,000/100: worst reconnect/catch-up/send/receive 1.12 s and 8.45 s. Full raw
+records, failed harness trials, corrected predicate and limits are in the load
+report. `pnpm check` passed after the final recovery changes.
+
+Task 33's current production audit found a high body-parser issue, fixed by the
+compatible 2.4.0 lockfile update. Current-package gzip/trailing-byte regression,
+auth/reset scripts, synthetic production configuration and `pnpm check` passed.
+One moderate esbuild migration-tooling advisory remains documented and unresolved;
+public staging/browser qualification remains open. See security-review.md.
+
+Task 34's architecture diagrams/four ADRs were traced against message, outbox,
+realtime, history and readiness code plus the measured fault evidence. Local links
+and Markdown fences passed review; no runtime code changed.
+
+Task 35's OpenAPI 3.0.3 document passed the official OpenAPI 3.0 schema dated
+2024-10-18 using the installed Ajv 6 validator, with all 16 local references
+resolved. `test:api-reference` passed on disposable services: examples also parse
+against canonical contracts; actual cookie authentication, lookup, conversation,
+bootstrap, send/retry, history/list and explicit error cases matched. The schema
+snapshot matches all 17 public tables after migrations 0000–0006 and every
+retained migration-created index; it includes the Drizzle journal and no data.
+Real public staging examples remain a Task 25 release gate. No browser was opened.
