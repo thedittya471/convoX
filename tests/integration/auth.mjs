@@ -145,7 +145,7 @@ try {
 
   const concurrentLookups = await Promise.all(Array.from({ length: 36 }, (_value, attempt) =>
     request(servers[attempt % servers.length], lookupPath, { cookie })));
-  assert.ok(concurrentLookups.every((response) => response.status === 200), "lookups must not apply a custom rate limit");
+  assert.ok(concurrentLookups.every((response) => response.status === 200), "a legitimate lookup burst below the approved quota must succeed");
 
   const raceUsername = `race_${randomBytes(8).toString("hex")}`;
   const race = await Promise.all([

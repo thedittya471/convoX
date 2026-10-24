@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { createMessageSchema, messageListQuerySchema, conversationSchema } from "@convox/contracts";
+import { enforceChatLimit } from "../utils/rate-limit.js";
 import { getVerifiedSession } from "../utils/verified-session.js";
 import { config } from "../utils/config.js";
 import { createMessage, listMessages } from "../services/messages.service.js";
@@ -19,6 +20,8 @@ export async function sendMessage(request: Request, response: Response) {
     if (request.get("Origin") !== new URL(config.BETTER_AUTH_URL).origin) {
       return response.status(403).json({ error: "Invalid request origin." });
     }
+
+    if (!await enforceChatLimit(response, "send", session.user.id, config.CHAT_SENDS_PER_MINUTE)) return;
 
     const id = conversationSchema.shape.id.safeParse(request.params.id);
     const parsed = createMessageSchema.safeParse(request.body);
@@ -58,6 +61,8 @@ export async function getMessages(request: Request, response: Response) {
     if (request.get("X-Expected-User-Id") && request.get("X-Expected-User-Id") !== session.user.id) {
       return response.status(403).json({ error: "The signed-in account has changed." });
     }
+
+    if (!await enforceChatLimit(response, "read", session.user.id, config.CHAT_READS_PER_MINUTE)) return;
 
     const id = conversationSchema.shape.id.safeParse(request.params.id);
     const parsed = messageListQuerySchema.safeParse(request.query);

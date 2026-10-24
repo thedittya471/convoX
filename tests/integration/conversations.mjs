@@ -1,8 +1,10 @@
 import { verifyFixture } from "./verify-email.mjs";
 import assert from "node:assert/strict";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { conversationListResponseSchema, conversationResponseSchema } from "../../packages/contracts/dist/index.js";
 import { pool } from "../../apps/server/dist/db/client.js";
+
+import { config } from "../../apps/server/dist/utils/config.js";
 
 const servers = ["http://server-1:4000", "http://server-2:4000", "http://server-3:4000"];
 const origin = new URL(process.env.BETTER_AUTH_URL).origin;
@@ -150,11 +152,13 @@ try {
     assert.equal((await request(`/api/conversations${query}`, { actor: first })).status, 400);
   }
 
-  for (let attempt = 0; attempt < 61; attempt += 1) {
-    const server = servers[attempt % servers.length];
-    assert.equal((await request("/api/conversations", { actor: first, body: { otherUserId: second.id }, server })).status, 200, "opening a conversation must not apply a custom rate limit");
-    await readList(second, "", server);
-  }
+  const quotaKey = `chat:open:${createHash("sha256").update(first.id).digest("hex")}`;
+  await pool.query("UPDATE rate_limit SET count=$1 WHERE key=$2", [config.CHAT_OPENS_PER_MINUTE - 2, quotaKey]);
+  const burst = await Promise.all(Array.from({ length: 6 }, (_, attempt) => request("/api/conversations", { actor: first, body: { otherUserId: second.id }, server: servers[attempt % 3] })));
+  assert.equal(burst.filter((response) => response.status === 200).length, 2);
+  assert.equal(burst.filter((response) => response.status === 429).length, 4);
+  for (const response of burst.filter((value) => value.status === 429)) assert.ok(Number(response.headers.get("retry-after")) > 0);
+  await readList(second, "", servers[2]);
 
   const logout = await request("/api/auth/sign-out", { actor: outsider, body: {} });
   assert.equal(logout.status, 200);
@@ -162,7 +166,7 @@ try {
   assert.equal((await request("/api/conversations", { actor: outsider, body: { otherUserId: first.id } })).status, 401);
   await pool.query('UPDATE "session" SET expires_at = NOW() - INTERVAL \'1 minute\' WHERE user_id = $1', [fourth.id]);
   assert.equal((await request("/api/conversations", { actor: fourth })).status, 401);
-  console.log("Conversation integration passed: auth/origins, required ordered participant pairs, cross-instance duplicate prevention, participant-only cursor pagination, and unrestricted authenticated requests.");
+  console.log("Conversation integration passed: auth/origins, required ordered participant pairs, cross-instance duplicate prevention, participant-only cursor pagination, and shared account quotas.");
 } finally {
   const fixtureIds = actors.map((actor) => actor.id);
   await pool.query("DELETE FROM conversation WHERE direct_user_low_id = ANY($1::text[]) OR direct_user_high_id = ANY($1::text[])", [fixtureIds]);

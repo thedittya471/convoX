@@ -1,5 +1,7 @@
 import type { Request, Response } from "express";
+import { config } from "../utils/config.js";
 import { usernameSchema } from "@convox/contracts";
+import { enforceChatLimit } from "../utils/rate-limit.js";
 import { getVerifiedSession } from "../utils/verified-session.js";
 import { findUserByUsername } from "../services/users.service.js";
 
@@ -10,6 +12,8 @@ export async function lookupUser(request: Request, response: Response) {
   try {
     const session = await getVerifiedSession(request, response, "Sign in to find someone.");
     if (!session) return;
+
+    if (!await enforceChatLimit(response, "lookup", session.user.id, config.CHAT_LOOKUPS_PER_MINUTE)) return;
 
     const parsed = usernameSchema.safeParse(request.query.username);
     if (!parsed.success) {
