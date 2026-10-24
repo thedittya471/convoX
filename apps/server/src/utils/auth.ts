@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq, gt, lte, sql } from "drizzle-orm";
 import { APIError, createAuthMiddleware, createEmailVerificationToken, getSessionFromCtx } from "better-auth/api";
-import { sendVerificationEmail } from "./email.js";
+import { sendVerificationEmail, sendPasswordResetEmail } from "./email.js";
 import { betterAuth } from "better-auth";
 import { username } from "better-auth/plugins";
 import { usernameSchema } from "@convox/contracts";
@@ -18,7 +18,7 @@ export const auth = betterAuth({
   baseURL: config.BETTER_AUTH_URL,
   secret: config.BETTER_AUTH_SECRET,
   trustedOrigins: [publicOrigin],
-  database: drizzleAdapter(db, { provider: "pg", schema }),
+  database: drizzleAdapter(db, { provider: "pg", schema, transaction: true }),
   plugins: [
     username({
       displayUsername: false,
@@ -29,7 +29,23 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 12,
-    maxPasswordLength: 128
+    maxPasswordLength: 128,
+    resetPasswordTokenExpiresIn: 3600,
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user, token }) => {
+      // Keep the response identical for missing accounts, throttled mail and SMTP failures.
+      try {
+        if (!await claimEmailQuota(`reset:${user.id}`)) return;
+        const link = new URL("/reset-password", publicOrigin);
+        link.searchParams.set("token", token);
+        await sendPasswordResetEmail(user.email, link.toString());
+      } catch {
+        console.error(JSON.stringify({ event: "password_reset_email_failed", instanceId: config.INSTANCE_ID }));
+      }
+    },
+  },
+  verification: {
+    storeIdentifier: { default: "plain", overrides: { "reset-password:": "hashed" } },
   },
   emailVerification: {
     sendOnSignUp: true,
@@ -75,7 +91,9 @@ export const auth = betterAuth({
         if (typeof requestedEmail !== "string" || identity.user.email.toLowerCase() !== requestedEmail.toLowerCase()) {
           throw new APIError("BAD_REQUEST", { message: "Use your signed-in email address." });
         }
-        await enforceVerificationResendLimit(identity.user.id);
+        if (!await claimEmailQuota(`verify:${identity.user.id}`)) {
+          throw new APIError("TOO_MANY_REQUESTS", { message: "Wait a minute before requesting another email." });
+        }
       }
       if (context.path === "/verify-email") {
         let callback: URL;
@@ -112,6 +130,9 @@ export const auth = betterAuth({
     window: 60,
     max: 100,
     customRules: {
+      "/request-password-reset": { window: 60, max: 3 },
+      "/reset-password": { window: 60, max: 5 },
+      "/reset-password/*": { window: 60, max: 5 },
       "/send-verification-email": { window: 60, max: 3 },
       "/verify-email": { window: 60, max: 20 },
       "/sign-in/email": { window: 60, max: 5 },
@@ -120,12 +141,12 @@ export const auth = betterAuth({
   },
 });
 
-async function enforceVerificationResendLimit(userId: string) {
+async function claimEmailQuota(key: string) {
   const now = Date.now();
   const windowStart = now - 60000;
   // The atomic database bucket limits one account across addresses and replicas.
   const [limit] = await db.insert(schema.rateLimit)
-    .values({ id: randomUUID(), key: `verify:${userId}`, count: 1, lastRequest: now })
+    .values({ id: randomUUID(), key, count: 1, lastRequest: now })
     .onConflictDoUpdate({
       target: schema.rateLimit.key,
       set: {
@@ -135,7 +156,5 @@ async function enforceVerificationResendLimit(userId: string) {
     })
     .returning({ count: schema.rateLimit.count });
 
-  if (limit.count > 3) {
-    throw new APIError("TOO_MANY_REQUESTS", { message: "Wait a minute before requesting another email." });
-  }
+  return limit.count <= 3;
 }

@@ -17,7 +17,7 @@
     "stack:up": "docker compose --profile stack up -d --build --wait --wait-timeout 120",
     "stack:down": "docker compose --profile stack down",
     "test:smoke": "node tests/integration/smoke.mjs",
-    "test:auth": "docker compose exec -T server-1 node tests/integration/auth.mjs",
+    "test:auth": "docker compose exec -T server-1 node tests/integration/auth.mjs && docker compose exec -T server-1 node tests/integration/password-reset.mjs",
     "test:conversations": "docker compose exec -T server-1 node tests/integration/conversations.mjs",
     "test:messages": "node tests/integration/messages.mjs",
     "test:realtime": "node tests/integration/realtime.mjs",
