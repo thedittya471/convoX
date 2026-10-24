@@ -11,6 +11,7 @@ import { loadPendingMessages, type PendingMessage } from "@/lib/message-outbox";
 export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
   userId: string; conversationId: string; peerName: string; onAuthRequired: () => void;
 }) {
+  const [presence, setPresence] = useState<ChatState["presence"]>("unavailable");
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState("");
   const [retrying, setRetrying] = useState<string | null>(null);
@@ -71,6 +72,7 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
           },
           onChange: (state: ChatState) => {
             if (controller.signal.aborted) return;
+            setPresence(state.presence);
             setPending(state.pending);
             setStatus(state.status);
             if (state.status === "unauthenticated") return onAuthRequired();
@@ -123,6 +125,7 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
     void client.current?.stop();
     browsingOlder.current = false;
     anchor.current = null;
+    setPresence("unavailable");
     setStatus("loading");
     setCanSend(false); setSendError("");
     setMessages([]); setError(""); setReset(false); setNewMessages(false); setLoading(true);
@@ -181,6 +184,7 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
 
   return <section aria-label={`Messages with ${peerName}`}>
     <ChatStatus status={status} />
+    <p role="status" aria-live="polite" aria-atomic="true">{peerName}: {presence === "unavailable" ? "presence unavailable" : presence}. Presence does not confirm reading or receipt.</p>
     {loading && status !== "loading" && <p>Loading older messages…</p>}
     {error && <p className="form-error">{error}</p>}
     {!unavailable && <button type="button" className="primary-button" disabled={loading || saving || retrying !== null} onClick={reload}>{reset ? "Reload history" : newMessages ? "View new messages" : "Return to recent messages"}</button>}

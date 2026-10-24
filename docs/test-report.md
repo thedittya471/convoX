@@ -132,3 +132,7 @@ Added the connection-owned Redis lease decision and bounded watch/snapshot schem
 ## Task 16: shared presence liveness
 
 `pnpm check` passed (45 unit tests). `pnpm test:presence` passed in the disposable `convox-task16` three-replica stack: outsider denial, two Bob connections across replicas, closing one tab, reconnect-before-old-cleanup, abrupt final replica kill with observed offline below 30 seconds, Redis outage → unavailable → recovered online, and session revocation without message traffic. The script restores the killed replica and Redis and deletes its synthetic accounts/conversation. No real-browser or capacity qualification was performed. Presence leases expire without a migration; removing the handlers rolls back the feature.
+
+## Task 17: participant presence UI
+
+`pnpm check` passed; the subsequent focused web suite passed 37 tests (47 units including contracts). `pnpm test:presence` passed again against the isolated three-replica stack with periodic snapshots. Added client assertions for conversation filtering, owned subscription cleanup, disconnect invalidation and silence expiry using a mocked timer. Chat exposes textual online/offline/unavailable state in a polite status region and disclaims receipt/reading. Real-browser/tab and focus/layout checks remain unverified at the owner's request.

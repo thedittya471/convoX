@@ -28,14 +28,11 @@ export function trackPresence(socket: RealtimeSocket) {
   let lastWatch = 0;
   let busy = false;
   let closed = false;
-  let previous = "";
 
   function emit(state: PresenceSnapshot["state"]) {
     if (!watched || closed || !socket.connected) return;
     const value = { conversationId: watched, state };
-    const encoded = JSON.stringify(value);
-    if (encoded !== previous) socket.emit("presence:changed", value);
-    previous = encoded;
+    socket.emit("presence:changed", value);
   }
 
   async function tick() {
@@ -79,7 +76,6 @@ export function trackPresence(socket: RealtimeSocket) {
     lastWatch = Date.now();
     const parsed = activityWatchSchema.safeParse(value);
     watched = parsed.success ? parsed.data.conversationId : undefined;
-    previous = "";
     emit("unavailable");
     void tick();
   });

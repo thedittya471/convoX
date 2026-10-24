@@ -479,3 +479,39 @@ test("stopping one view leaves another view active and preserves both saved send
     assert.equal(first.getState().status, "stopped");
   } finally { await Promise.all([first.stop(), second.stop()]); }
 });
+
+test("presence watches only the active conversation and clears on disconnect and stop", async () => {
+  const setup = fixture();
+  const watches = [];
+  setup.socket.on("activity:watch", (value) => watches.push(value));
+  const client = setup.client();
+  try {
+    await client.start();
+    await until(() => client.getState().status === "connected");
+    assert.deepEqual(watches, [{ conversationId: setup.conversationId }]);
+    setup.socket.emit("presence:changed", { conversationId: randomUUID(), state: "online" });
+    assert.equal(client.getState().presence, "unavailable");
+    setup.socket.emit("presence:changed", { conversationId: setup.conversationId, state: "online" });
+    assert.equal(client.getState().presence, "online");
+    setup.socket.disconnect();
+    assert.equal(client.getState().presence, "unavailable");
+    await client.stop();
+    assert.equal(setup.socket.listenerCount("presence:changed"), 0);
+    setup.socket.emit("presence:changed", { conversationId: setup.conversationId, state: "online" });
+    assert.equal(client.getState().presence, "unavailable");
+  } finally { await client.stop(); }
+});
+
+test("presence becomes unavailable when activity snapshots stop arriving", async (context) => {
+  const setup = fixture();
+  const client = setup.client();
+  try {
+    await client.start();
+    await until(() => client.getState().status === "connected");
+    context.mock.timers.enable({ apis: ["setTimeout"] });
+    setup.socket.emit("presence:changed", { conversationId: setup.conversationId, state: "online" });
+    assert.equal(client.getState().presence, "online");
+    context.mock.timers.tick(11001);
+    assert.equal(client.getState().presence, "unavailable");
+  } finally { await client.stop(); context.mock.timers.reset(); }
+});
