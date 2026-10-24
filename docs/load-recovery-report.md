@@ -135,3 +135,74 @@ five-minute envelope; these measurements do not establish unlimited capacity or
 long-duration memory behavior. See committed `2026-10-24-upper` raw, environment
 and summary artifacts beside the baseline. Public staging/TLS/gateway capacity
 and real-browser rendering remain unqualified.
+
+## Task 32 recovery harness
+
+Set `LOAD_RECOVERY=1` with the existing load command. Run the baseline and upper
+envelopes sequentially with `LOAD_SECONDS=60 LOAD_WARMUP=10` and their respective
+500/50 and 1,000/100 settings. This is a 60-second failure exercise at each
+qualified workload rate; the separate capacity runs above last five minutes.
+The worker loads the actual `createChatClient` through the installed TS loader
+and uses fake IndexedDB, not a browser or a simulated synchronization algorithm.
+HTTP and reconnecting sockets use NGINX. Test-only `SOCKET_IP_LIMIT=2000` and
+`CHAT_IP_PER_MINUTE=1000000` accommodate the shared driver IP; account limits and
+production defaults are unchanged. This is not a default shared-NAT quota test.
+
+After ten seconds of active measured traffic, a client commits a send, discards
+the acknowledgement and asks the host to SIGKILL server-3. Timing starts before
+that host command. Every reconnecting view initially on server-3 must reach a
+healthy different replica, apply contiguous catch-up, reconcile its initial
+pending state and complete a new send/peer reply within ten seconds. One
+catch-up response is deliberately held for 250 ms while traffic continues.
+Each view's raw timing, new instance, sent/reply IDs and applied cursor is retained.
+Probe and uncertain-send IDs are reconciled independently against SQL.
+
+Five views of one synthetic user are deliberately pinned to server-3 and kept
+disconnected to measure typing and final-connection presence expiry. Their peer
+stays on server-1. Those five deliberately offline views are excluded from the
+reconnecting-client deadline, explicitly return after offline is observed, and
+catch up before final all-recipient accounting. Only then does server-3 restart;
+realtime readiness, an authenticated handshake and continued send/receive are
+checked. The remaining replicas carry active traffic throughout the outage.
+All applied messages are checked for duplicates, including sender views.
+
+Two initial baseline trials failed an overbroad harness predicate: a view had
+already caught up and observed both its send and peer reply, but the probe also
+required its entire local queue to be empty while concurrent views of the same
+account kept sending. The final predicate measures the required connected,
+contiguous send/reply outcome. Initial pre-probe pending reconciliation, the
+ten-second threshold, original uncertain-send identity and SQL uniqueness checks
+remain enforced. Failed artifacts are preserved under
+`/tmp/convox-release/recovery-baseline/` and `recovery-baseline-diagnostic/`.
+Recovery artifacts contain no cross-instance routing-latency claim because
+reconnections can change the receiving instance; recovery timing is a separate
+single-clock measurement. Missing/timeout/duplicate outcomes remain failures.
+
+Final local recovery results (2026-10-24):
+
+| Measurement | Baseline envelope | Upper envelope |
+| --- | --- | --- |
+| Connections / message rate | 500 / 50 per second | 1,000 / 100 per second |
+| Active duration after warmup | 60 seconds | 60 seconds |
+| Reconnecting affected views | 164 / 164 recovered | 321 / 321 recovered |
+| Recovery p95 / worst | 1,107.35 / 1,115.72 ms | 7,887.19 / 8,449.57 ms |
+| Offered / accepted | 3,000 / 3,000 | 6,000 / 6,000 |
+| Recipient receipts | 15,000 / 15,000 | 30,000 / 30,000 |
+| Load retries | 0 | 1 |
+| Missing / stored duplicates / applied duplicates | 0 / 0 / 0 | 0 / 0 / 0 |
+| Offline observed | 20,005.09 ms | 22,003.27 ms |
+| Typing cleared | 4,495.77 ms | 5,423.85 ms |
+| Replica rejoin / all final sockets connected | Passed / 500 | Passed / 1,000 |
+
+Raw per-view timing/probe records, SQL reconciliation outcomes, metrics and host
+resource samples are committed in `2026-10-24-recovery-baseline` and
+`2026-10-24-recovery-upper`. The two predicate-failure artifacts are committed in
+`2026-10-24-recovery-harness-failures`. The upper worst case has about 1.55 seconds
+of margin against the ten-second limit; one local run does not establish a
+production recovery SLA. No browser/staging qualification is claimed.
+
+The recovery artifacts record parent HEAD `db7e837` plus the recovery-driver
+changes committed with this report (`tests/load/run.mjs` and `recovery.mjs`).
+Check out the commit containing this report to reproduce those scripts. The
+application code itself is unchanged by the recovery harness. `pnpm check`
+passed with all 54 unit/accounting tests after the final harness changes.

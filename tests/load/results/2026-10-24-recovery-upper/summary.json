@@ -1,0 +1,51 @@
+{
+  "load": {
+    "offered": 6000,
+    "accepted": 6000,
+    "rejected": 0,
+    "uncertain": 0,
+    "retries": 1,
+    "timeouts": 0,
+    "requestErrors": 0,
+    "missing": 0,
+    "transportDuplicates": 0,
+    "storedDuplicates": 0,
+    "crossInstanceSamples": 0,
+    "latencyMs": {
+      "min": null,
+      "p50": null,
+      "p95": null,
+      "p99": null,
+      "max": null
+    },
+    "connections": 1000,
+    "distribution": [
+      344,
+      330,
+      326
+    ],
+    "connectedAtEnd": 1000,
+    "rate": 100,
+    "seconds": 60,
+    "warmup": 10,
+    "seed": "convox-20261024",
+    "offeredElapsedMs": 60002.676235,
+    "driverOverload": 0,
+    "passed": true
+  },
+  "recovery": {
+    "started": 56425.785443,
+    "lostResponse": true,
+    "heldHistory": true,
+    "offlineMs": 22003.266550999993,
+    "typingClearedMs": 5423.849002999996,
+    "rejoined": true,
+    "errors": [],
+    "appliedDuplicates": 0,
+    "p95Ms": 7887.190129000002,
+    "worstMs": 8449.568838,
+    "passed": true
+  },
+  "affected": 321,
+  "recovered": 321
+}
