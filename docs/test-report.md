@@ -23,3 +23,14 @@ Used disposable Compose project `convox-reset-20261024`, override `/tmp/convox-r
 Real-provider credentials/TLS/external mailbox delivery, production deployment, load and live CI were not exercised. Generic request responses do not promise identical timing; SMTP failures are deliberately hidden from anonymous requesters and recorded as sanitized events. Existing SMTP configuration is still required for real recovery emails. Revert the Task 5 commits to roll back; no migration rollback is needed. Unused reset tokens retain their one-hour lifetime, including those created before a rollback, so keep their links private.
 
 References checked against installed source: [Better Auth password recovery and session revocation](https://better-auth.com/docs/authentication/email-password), installed `api/routes/password.mjs`, `utils/password.mjs`, `db/internal-adapter.mjs`, and Drizzle adapter transaction configuration.
+
+## Task 6: Username UI qualification (2026-10-24)
+
+Implemented optional username selection during signup and username setup/editing on the account page. The typed Better Auth client mirrors the existing server username plugin with `displayUsername: false`. Both forms reuse the existing shared username schema; the account form reports normalized saves, taken names, authentication/rate errors and unconfirmed network failures. The UI explains exact-name discoverability, public/editable usernames, reuse of previous names and unchanged email login. No server/API/schema/dependency change.
+
+- `pnpm check`: PASS (production builds, TypeScript, lint, 7 contract tests and 11 client tests).
+- `pnpm test:auth`: PASS (original auth/username suite plus password-reset suite). Added assertions confirm duplicate-name error codes, unchanged usernames after rejected claims, and preserved username/email login for the loser of concurrent claims.
+- The first auth run could not resolve `nginx` because the initial minimal test stack omitted the gateway. Starting its gateway/frontend dependencies corrected the test setup; the unchanged script then passed. No application-code workaround or weakened assertion.
+- Used disposable project `convox-username-20261024` with isolated env/volume and the previously qualified Task 5 server image: backend source is unchanged. Copied the updated auth test into server-1. Frontend changes were compiled and checked locally; the reused container frontend was only a gateway dependency, not UI validation. Test SMTP used local Mailpit, no external relay.
+- Browser checks and broader messaging/fault suites were intentionally omitted at the owner's request. Build/type checks are not a claim that browser interactions were exercised.
+- `git diff --check`: PASS. Disposable test stack/volume and generated secret removed; existing local services and env files left untouched.

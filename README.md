@@ -25,7 +25,7 @@ The first release uses HTTPS/WSS in deployment and server-readable message stora
 
 ### Approved release policies (2026-10-24)
 
-The owner approved exact-username discovery, editable usernames with normalization/uniqueness checks, and verified email before discovery or chat. Existing users retain login and receive a verification path. **Verification gating is implemented for discovery, conversation/message APIs and live delivery.** Unverified users can still log in to verify/resend. Browser username controls remain a later task.
+The owner approved exact-username discovery, editable usernames with normalization/uniqueness checks, and verified email before discovery or chat. Existing users retain login and receive a verification path. **Verification gating is implemented for discovery, conversation/message APIs and live delivery.** Unverified users can still log in to verify/resend. Signup supports an optional username, and the account page lets new and existing users set or change it.
 
 Retain messages and identities until an explicitly approved deletion process; no automatic purge is authorized. Support catch-up over all retained history, without promising infinite storage or availability. The approved backup targets are daily encrypted database backups, seven-day backup retention, recovery-point objective (RPO) of 24 hours and recovery-time objective (RTO) of four hours. These are unimplemented/unproven targets until the backup/restore task passes. Restoring a backup can lose data newer than its cutoff; the single-application-instance durability guarantee does not cover that disaster scenario.
 
@@ -138,7 +138,7 @@ Express owns Better Auth at `/api/auth/*`. Its handler is mounted before the JSO
 
 | Operation | HTTP endpoint |
 | --- | --- |
-| Register | `POST /api/auth/sign-up/email` with name, email and password; optional username via API |
+| Register | `POST /api/auth/sign-up/email` with name, email and password; optional username |
 | Log in | `POST /api/auth/sign-in/email` with email and password |
 | Resend verification | `POST /api/auth/send-verification-email` with the signed-in email |
 | Verify email | `GET /api/auth/verify-email` with the emailed token; trusted callback only |
@@ -190,13 +190,13 @@ Runtime dependency audit currently reports a moderate advisory in a transitive e
 
 Server flow: `routes/users.ts` maps the endpoint, `controllers/users.controller.ts` handles authentication/validation and HTTP responses, and `services/users.service.ts` owns lookup queries. There is no separate repository layer or generic controller framework.
 
-Apply the additive username migration with `pnpm db:migrate` before starting the updated application. Existing accounts are preserved with a nullable username. User discovery is backend-only for now: the signup username field, username setup form and search UI have been removed. Better Auth's server-side username plugin still accepts optional usernames during API signup or authenticated `POST /api/auth/update-user` requests. It validates usernames and normalizes them to lowercase; PostgreSQL enforces uniqueness. Usernames are 3–30 ASCII letters, numbers, underscores or dots. Display names are not unique and are not search keys. Username availability and username/password login endpoints are disabled; email/password login is unchanged. Callers should keep the returned user ID as the stable identity, not the username.
+Apply the additive username migration with `pnpm db:migrate` before starting the updated application. Existing accounts are preserved with a nullable username. Signup now offers an optional username field; omitting it preserves account creation and email login. The account page lets new and existing users choose or change their username through the existing authenticated `POST /api/auth/update-user` endpoint. Both forms reuse the shared validation schema, show duplicate-name feedback and normalize successful values to lowercase. The Better Auth client username plugin mirrors the server configuration (`displayUsername: false`) for typed signup, updates and session state. Participant search remains backend-only until Task 7. It validates usernames and normalizes them to lowercase; PostgreSQL enforces uniqueness. Usernames are 3–30 ASCII letters, numbers, underscores or dots. Display names are not unique and are not search keys. Username availability and username/password login endpoints are disabled; email/password login is unchanged. Callers should keep the returned user ID as the stable identity, not the username.
 
 `GET /api/users/lookup?username=alice` requires a valid session, matches a complete username case-insensitively, excludes the caller, and returns only `{ "user": { "id": "…", "username": "alice", "name": "Alice" } }`. It never returns email, session tokens, or a directory listing. Responses use `Cache-Control: no-store`. Status codes: 400 invalid input, 401 missing/expired session, 404 no other matching user, 503 temporarily unavailable. Lookup currently has no application-level rate limit.
 
-Only accounts that choose a username through the API are discoverable. Use the found user ID to open a direct conversation. Authenticated discovery intentionally reveals the display name associated with a known username. Usernames are not secret. Discovery and conversation endpoints currently have no application-level rate limits; verified-email access is enforced, and general chat abuse controls remain launch requirements.
+Only accounts that choose a username are discoverable. The forms explain that verified signed-in users can discover the display name by exact username, that usernames are public/editable, and that a previous username can be claimed by someone else after a change. Use the found user ID to open a direct conversation. Authenticated discovery intentionally reveals the display name associated with a known username. Usernames are not secret. Discovery and conversation endpoints currently have no application-level rate limits; verified-email access is enforced, and general chat abuse controls remain launch requirements.
 
-Use `pnpm test:auth` to verify backend discovery and username handling; there is currently no browser discovery flow.
+Use `pnpm test:auth` to verify backend discovery and username handling, including preserved account/email login after failed or concurrent claims. The browser supports username setup/editing; participant lookup UI remains Task 7.
 
 ### Conversations (backend only)
 

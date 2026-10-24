@@ -134,6 +134,9 @@ try {
   assert.equal(invalidClaim.status, 400);
   const duplicateClaim = await request(servers[0], "update-user", { cookie, body: { username: targetUsername } });
   assert.equal(duplicateClaim.status, 400);
+  assert.equal((await duplicateClaim.json()).code, "USERNAME_IS_ALREADY_TAKEN", "the UI must receive a clear duplicate-name error");
+  const unchanged = await request(servers[2], "get-session", { cookie });
+  assert.equal((await unchanged.json()).user.username ?? null, identity.user.username ?? null, "invalid and duplicate claims must preserve the existing username");
   const claim = await request(servers[0], "update-user", { cookie, body: { username: legacyUsername.toUpperCase() } });
   assert.equal(claim.status, 200, "existing accounts must be able to choose a username");
   const claimedSession = await request(servers[2], "get-session", { cookie });
@@ -152,6 +155,12 @@ try {
   assert.equal(race.filter((response) => response.status === 200).length, 1, "only one concurrent claim may succeed");
   const owners = await pool.query('SELECT id FROM "user" WHERE username = $1', [raceUsername]);
   assert.equal(owners.rowCount, 1, "the database must enforce uniqueness under concurrency");
+  const loser = race.findIndex((response) => response.status !== 200);
+  const accounts = [{ id: identity.user.id, email, username: legacyUsername }, { id: target.user.id, email: targetEmail, username: targetUsername }];
+  const retained = await pool.query('SELECT username FROM "user" WHERE id=$1', [accounts[loser].id]);
+  assert.equal(retained.rows[0].username, accounts[loser].username, "losing a concurrent claim must preserve the previous username");
+  const retainedLogin = await request(servers[2], "sign-in/email", { body: { email: accounts[loser].email, password }, ip: `198.35.${randomBytes(1)[0]}.${randomBytes(1)[0]}` });
+  assert.equal(retainedLogin.status, 200, "a failed username change must preserve email login");
 
   for (const server of servers) {
     const response = await request(server, "get-session", { cookie });

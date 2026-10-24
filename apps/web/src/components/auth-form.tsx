@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
+import { usernameSchema } from "@convox/contracts";
 import { authClient } from "@/lib/auth-client";
 
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
@@ -35,13 +36,22 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       setError("Please enter your name.");
       return;
     }
+    const requestedUsername = String(fields.get("username") ?? "");
+    const parsedUsername = requestedUsername ? usernameSchema.safeParse(requestedUsername) : null;
+    if (signup && parsedUsername && !parsedUsername.success) {
+      setError("Use 3–30 letters, numbers, underscores or dots for your username.");
+      return;
+    }
+    const username = parsedUsername?.success ? parsedUsername.data : undefined;
     setSubmitting(true);
     try {
       const result = signup
-        ? await authClient.signUp.email({ name, email, password })
+        ? await authClient.signUp.email({ name, email, password, username })
         : await authClient.signIn.email({ email, password });
       if (result.error) {
-        if (result.error.status === 429) {
+        if (result.error.code === "USERNAME_IS_ALREADY_TAKEN") {
+          setError("That username is already taken. Choose another, or leave it blank to set one later.");
+        } else if (result.error.status === 429) {
           setError("Too many attempts. Please wait a minute and try again.");
         } else if (result.error.status >= 500) {
           setError("The server is temporarily unavailable. Please try again.");
@@ -101,6 +111,13 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
                     <div className="form-field">
                       <label htmlFor="name">Name</label>
                       <input id="name" name="name" autoComplete="name" placeholder="Enter your name" required />
+                    </div>
+                  )}
+                  {signup && (
+                    <div className="form-field">
+                      <label htmlFor="username">Username (optional)</label>
+                      <input id="username" name="username" autoComplete="username" autoCapitalize="none" spellCheck={false} minLength={3} maxLength={30} pattern="[A-Za-z0-9_.]+" aria-describedby="username-hint" />
+                      <p id="username-hint" className="field-hint">Use 3–30 letters, numbers, underscores or dots. Saved in lowercase. People with verified accounts can find your display name by this exact username. You can set or change it later; sign-in still uses your email.</p>
                     </div>
                   )}
                   <div className="form-field">

@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { UsernameForm } from "@/components/username-form";
 import { authClient } from "@/lib/auth-client";
 
 function Account() {
@@ -85,6 +86,7 @@ function Account() {
             </>
           )}
         </div>
+        <UsernameForm key={session.user.id} username={session.user.username} />
         {verification === "invalid" && <p role="alert">This verification link expired or was already used. If your email is still unverified, request a new link.</p>}
         {verificationMessage && <p role="status">{verificationMessage}</p>}
         {verificationError && <p role="alert" className="form-error">{verificationError}</p>}
