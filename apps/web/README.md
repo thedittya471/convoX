@@ -6,6 +6,7 @@ Run setup and checks from the repository root using pnpm. See the [root README](
 
 - `src/app/`: routes, account page and shared styles/layout.
 - `src/components/auth-form.tsx`: login/signup form.
+- `src/components/start-conversation.tsx`: verified-user exact-name lookup and direct conversation opening.
 - `src/components/username-form.tsx`: account username setup/editing; signup has an optional username field in `auth-form.tsx`.
 - `src/components/password-recovery-form.tsx`: password reset request and submission forms.
 - `src/lib/auth-client.ts`: Better Auth browser client.

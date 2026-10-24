@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { StartConversation } from "@/components/start-conversation";
 import { UsernameForm } from "@/components/username-form";
 import { authClient } from "@/lib/auth-client";
 
@@ -74,7 +75,7 @@ function Account() {
         <p className="muted wrap-break-word">Signed in as {session.user.email}</p>
         <div className="account-notice">
           {session.user.emailVerified ? (
-            <><h2>Email verified.</h2><p>Your account is ready. Conversations are coming next.</p></>
+            <><h2>Email verified.</h2><p>Your account is ready. Find someone below to open a conversation.</p></>
           ) : (
             <>
               <h2>Verify your email</h2>
@@ -86,6 +87,7 @@ function Account() {
             </>
           )}
         </div>
+        {session.user.emailVerified && <StartConversation key={session.user.id} userId={session.user.id} />}
         <UsernameForm key={session.user.id} username={session.user.username} />
         {verification === "invalid" && <p role="alert">This verification link expired or was already used. If your email is still unverified, request a new link.</p>}
         {verificationMessage && <p role="status">{verificationMessage}</p>}

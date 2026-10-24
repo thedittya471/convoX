@@ -34,3 +34,12 @@ Implemented optional username selection during signup and username setup/editing
 - Used disposable project `convox-username-20261024` with isolated env/volume and the previously qualified Task 5 server image: backend source is unchanged. Copied the updated auth test into server-1. Frontend changes were compiled and checked locally; the reused container frontend was only a gateway dependency, not UI validation. Test SMTP used local Mailpit, no external relay.
 - Browser checks and broader messaging/fault suites were intentionally omitted at the owner's request. Build/type checks are not a claim that browser interactions were exercised.
 - `git diff --check`: PASS. Disposable test stack/volume and generated secret removed; existing local services and env files left untouched.
+
+## Task 7: Participant lookup/open qualification (2026-10-24)
+
+Added verified-account exact-username lookup and canonical conversation opening. Uses existing APIs/shared schemas, stable user IDs, public peer fields and abort checks before opening/applying a result. Input changes and unmount cancel pending work. Users without their own username can search. Lists, history and sending remain subsequent tasks.
+
+- `pnpm check`: PASS (build, types, lint and 21 unit tests). Three new helper tests cover normalized lookup/stable-ID opening, invalid/missing/auth/self failures and stale cancellation. Final follow-up source change was wording only.
+- `pnpm test:auth` and `pnpm test:conversations`: PASS, including original reset coverage and canonical/reversed/concurrent pair reuse. Used disposable project `convox-task7`, existing qualified Task 5 images (backend unchanged) and updated auth script copied into server-1. Frontend source was checked locally, not exercised through the reused container UI.
+- Browser and broad messaging/fault checks intentionally omitted at owner request. No claim of browser interaction verification.
+- No dependency, backend, API or migration change. `git diff --check` passed. Disposable stack/volume and generated secret removed; existing services/env files untouched.
