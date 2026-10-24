@@ -338,3 +338,9 @@ Security review and dependency dispositions: [docs/security-review.md](docs/secu
 Release references: [HTTP/OpenAPI](docs/openapi.json), [realtime protocol](docs/realtime.md), [database](docs/database.md), [architecture and ADRs](docs/architecture.md).
 
 Run the deterministic CI-equivalent checks with `pnpm test:ci` (Docker required); it builds and removes its own isolated stack. See [release evidence and blockers](docs/release-evidence.md), [concepts draft](CONCEPTS.md) and [observed errors](ERRORS.md).
+
+Release status: **local preparation only; not deployed or approved for promotion**.
+See the [candidate checklist and open gates](docs/release-checklist.md) and
+[staging/rollback rehearsal](docs/staging-rehearsal.md). Owner concepts/authorship,
+real-browser/staging checks, operational ownership/backups and final-image
+performance qualification remain open.

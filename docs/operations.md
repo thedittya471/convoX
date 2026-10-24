@@ -119,3 +119,12 @@ contact, secret/image/host/backup/alert inputs without inventing them. It is loc
 preparation only: staging execution and operator ownership remain pending. The
 [release evidence matrix](release-evidence.md) distinguishes fresh CI checks from
 historical load measurements and unexecuted deployment gates.
+
+### Release promotion status
+
+[The release checklist](release-checklist.md) records the reviewed source baseline,
+lockfile fingerprint, local CI evidence and missing artifact/environment/backup/
+owner inputs. It is blocked local preparation, not a successful staging rehearsal
+or deployment authorization. The next execution requires the owner's deferred
+staging details; public deployment requires explicit approval of the completed
+candidate after all mandatory gates pass.
