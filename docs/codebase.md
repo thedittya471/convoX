@@ -19,6 +19,7 @@ Start with the request flow below. The project has one Express backend, one Next
 | Startup/shutdown | `apps/server/src/index.ts` | Connect dependencies, start the outbox publisher and close resources. |
 | Login/signup UI | `apps/web/src/components/auth-form.tsx` | Shared form and auth error handling. |
 | Password recovery UI | `apps/web/src/components/password-recovery-form.tsx`, `apps/web/src/app/forgot-password/`, `apps/web/src/app/reset-password/` | Request/reset forms, confirmation, invalid-link recovery and fresh sign-in. |
+| Conversation navigation | `apps/web/src/components/conversations.tsx`, `apps/web/src/lib/conversation-list.ts` | Account-scoped list paging/deduplication, selection, keyboard return and auth-failure exit. |
 | Participant lookup/open | `apps/web/src/components/start-conversation.tsx`, `apps/web/src/lib/open-conversation.ts` | Exact-name lookup, canonical conversation creation/opening and cancellation of stale requests. |
 | Username setup/editing | `apps/web/src/components/username-form.tsx` | Validate and save an editable username through the existing auth API; explain exact-name discovery and display save errors. |
 | Account UI | `apps/web/src/app/page.tsx` | Session state, verification resend/refresh and sign-out. |

@@ -43,3 +43,13 @@ Added verified-account exact-username lookup and canonical conversation opening.
 - `pnpm test:auth` and `pnpm test:conversations`: PASS, including original reset coverage and canonical/reversed/concurrent pair reuse. Used disposable project `convox-task7`, existing qualified Task 5 images (backend unchanged) and updated auth script copied into server-1. Frontend source was checked locally, not exercised through the reused container UI.
 - Browser and broad messaging/fault checks intentionally omitted at owner request. No claim of browser interaction verification.
 - No dependency, backend, API or migration change. `git diff --check` passed. Disposable stack/volume and generated secret removed; existing services/env files untouched.
+
+## Task 8: Conversation navigation qualification (2026-10-24)
+
+Added account-keyed cursor list paging (20/page), empty/loading/retry states, public peer labels including nullable usernames, duplicate suppression and creation-time/ID ordering. Search/open integrates with list selection. Paging failures preserve selection; auth failures clear chat state. Selection/back focus and a stacked narrow-screen layout are implemented. The existing expected-user check from message endpoints now also protects list/open requests against account switches; the session remains the authorization source.
+
+- `pnpm check`: PASS (production build, types, lint and 24 unit tests). New script tests cover exact bounded cursor requests, overlapping/tied-ID page merges, missing usernames, auth statuses, cancellation and non-advancing cursors.
+- `pnpm test:conversations`: passed against disposable project `convox-task8`, including new mismatched-account list/open rejection and matching-account success. Existing qualified images were used initially; the final compiled conversation controller was then copied into all three replicas, services restarted and the updated integration script rerun successfully. Frontend was checked locally, not through the reused container UI.
+- Initial lint findings were corrected with promise callbacks for asynchronous effect results and an explicit account-refresh button; no rule suppression.
+- Browser/mobile interaction and broader suites omitted at the owner's request. No claim of runtime browser verification. No dependency or migration added.
+- `git diff --check` passed. Disposable stack/volume and generated secret removed; existing services/env files preserved.

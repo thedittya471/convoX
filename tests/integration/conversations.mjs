@@ -11,11 +11,12 @@ const emails = Array.from({ length: 5 }, (_value, index) => `conversation-test-$
 const actors = [];
 const password = randomBytes(24).toString("base64url");
 
-async function request(path, { actor, body, server = servers[0], requestOrigin = origin } = {}) {
+async function request(path, { actor, body, server = servers[0], requestOrigin = origin, expectedUserId } = {}) {
   return fetch(`${server}${path}`, {
     method: body === undefined ? "GET" : "POST",
     headers: {
       ...(requestOrigin ? { origin: requestOrigin } : {}),
+      ...(expectedUserId ? { "X-Expected-User-Id": expectedUserId } : {}),
       ...(actor ? { cookie: actor.cookie } : {}),
       ...(body === undefined ? {} : { "content-type": "application/json" }),
     },
@@ -105,6 +106,9 @@ try {
   assert.equal((await request(`/api/conversations/${directId}/members`, { actor: first, body: { userId: third.id } })).status, 404, "direct chats must not expose a member-add endpoint");
 
   assert.deepEqual((await readList(outsider)).conversations, []);
+  assert.equal((await request("/api/conversations", { actor: first, expectedUserId: second.id })).status, 403, "account switches must reject stale list requests");
+  assert.equal((await request("/api/conversations", { actor: first, expectedUserId: first.id })).status, 200);
+  assert.equal((await request("/api/conversations", { actor: first, expectedUserId: second.id, body: { otherUserId: second.id } })).status, 403, "account switches must reject stale opens");
   assert.equal((await request(`/api/conversations?userId=${first.id}`, { actor: outsider })).status, 400, "the caller cannot select another user's list");
 
   const directIds = [directId];

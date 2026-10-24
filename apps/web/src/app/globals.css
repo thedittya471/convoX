@@ -443,3 +443,13 @@ input:disabled {
     font-size: clamp(2rem, 7vh, 4rem);
   }
 }
+
+.conversation-account { max-width: 64rem; }
+.conversation-browser { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; margin-block: 1.5rem; }
+.conversation-browser section { min-width: 0; }
+.conversation-list { list-style: none; padding: 0; }
+.conversation-list button { width: 100%; padding: 0.75rem; text-align: left; overflow-wrap: anywhere; border: 1px solid var(--border); border-radius: 0.375rem; margin-top: 0.5rem; }
+.conversation-list button[aria-pressed="true"] { background: var(--accent); color: white; }
+@media (min-width: 768px) {
+  .conversation-browser { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+}

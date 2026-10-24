@@ -4,18 +4,17 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { Conversation } from "@convox/contracts";
 import { ConversationLookupError, openConversation } from "@/lib/open-conversation";
 
-export function StartConversation({ userId }: { userId: string }) {
+export function StartConversation({ userId, onOpen, onAuthRequired }: { userId: string; onOpen: (conversation: Conversation) => void; onAuthRequired: () => void }) {
   const [username, setUsername] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [conversation, setConversation] = useState<Conversation | null>(null);
   const active = useRef<AbortController | null>(null);
   const feedback = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => () => active.current?.abort(), []);
   useEffect(() => {
-    if (error || conversation) feedback.current?.focus();
-  }, [error, conversation]);
+    if (error) feedback.current?.focus();
+  }, [error]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -24,11 +23,11 @@ export function StartConversation({ userId }: { userId: string }) {
     active.current = controller;
     setBusy(true);
     setError("");
-    setConversation(null);
     try {
       const opened = await openConversation(username, userId, AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]));
-      if (!controller.signal.aborted) setConversation(opened);
+      if (!controller.signal.aborted) onOpen(opened);
     } catch (failure) {
+      if (!controller.signal.aborted && failure instanceof ConversationLookupError && [401, 403].includes(failure.status ?? 0)) onAuthRequired();
       if (!controller.signal.aborted) setError(failure instanceof ConversationLookupError ? failure.message : "Could not open the conversation. Check your connection and try again.");
     } finally {
       if (active.current === controller) setBusy(false);
@@ -47,19 +46,12 @@ export function StartConversation({ userId }: { userId: string }) {
             active.current = null;
             setBusy(false);
             setError("");
-            setConversation(null);
             setUsername(event.target.value);
           }} autoCapitalize="none" autoComplete="off" spellCheck={false} minLength={3} maxLength={30} pattern="[A-Za-z0-9_.]+" required />
         </div>
         <button className="primary-button" disabled={busy} type="submit">{busy ? "Finding and opening…" : "Open conversation"}</button>
       </form>
       {error && <><p ref={feedback} tabIndex={-1} className="form-error" role="alert">{error}</p><p><a href="/login">Sign in again</a> if your session expired, or refresh your account to check verification.</p></>}
-      {conversation && (
-        <div>
-          <p ref={feedback} tabIndex={-1} role="status">Conversation opened with {conversation.peer.name}{conversation.peer.username ? ` (@${conversation.peer.username})` : ""}.</p>
-          <p>Message history and sending are not available yet.</p>
-        </div>
-      )}
     </section>
   );
 }

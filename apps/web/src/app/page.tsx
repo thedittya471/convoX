@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { StartConversation } from "@/components/start-conversation";
+import { Conversations } from "@/components/conversations";
 import { UsernameForm } from "@/components/username-form";
 import { authClient } from "@/lib/auth-client";
 
@@ -87,7 +87,7 @@ function Account() {
             </>
           )}
         </div>
-        {session.user.emailVerified && <StartConversation key={session.user.id} userId={session.user.id} />}
+        {session.user.emailVerified && <Conversations key={session.user.id} userId={session.user.id} />}
         <UsernameForm key={session.user.id} username={session.user.username} />
         {verification === "invalid" && <p role="alert">This verification link expired or was already used. If your email is still unverified, request a new link.</p>}
         {verificationMessage && <p role="status">{verificationMessage}</p>}
@@ -104,7 +104,7 @@ function Account() {
 
   return (
     <main className="auth-shell">
-      <section className="auth-card" aria-label="Your account">
+      <section className={`auth-card${session?.user.emailVerified ? " conversation-account" : ""}`} aria-label="Your account">
         <p className="brand">convo<span>X</span></p>
         {content}
       </section>

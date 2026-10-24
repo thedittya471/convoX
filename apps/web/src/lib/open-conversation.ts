@@ -1,11 +1,13 @@
 import { conversationResponseSchema, userLookupResponseSchema, usernameSchema } from "@convox/contracts";
 
-export class ConversationLookupError extends Error {}
+export class ConversationLookupError extends Error {
+  constructor(message: string, readonly status?: number) { super(message); }
+}
 
-function checkResponse(response: Response, missing: string) {
+export function checkConversationResponse(response: Response, missing: string) {
   if (response.ok) return;
-  if (response.status === 401) throw new ConversationLookupError("Your session expired. Sign in again to continue.");
-  if (response.status === 403) throw new ConversationLookupError("Verify your email from your account before opening a conversation.");
+  if (response.status === 401) throw new ConversationLookupError("Your session expired. Sign in again to continue.", 401);
+  if (response.status === 403) throw new ConversationLookupError("Verify your email from your account before opening a conversation.", 403);
   if (response.status === 404) throw new ConversationLookupError(missing);
   if (response.status === 429) throw new ConversationLookupError("Too many attempts. Wait a minute and try again.");
   throw new ConversationLookupError("Conversations are temporarily unavailable. Please try again.");
@@ -17,7 +19,7 @@ export async function openConversation(username: string, userId: string, signal:
   const lookup = await request(`/api/users/lookup?username=${encodeURIComponent(parsed.data)}`, {
     credentials: "include", cache: "no-store", signal,
   });
-  checkResponse(lookup, "No other user has that exact username. Enter someone else’s username, not your own.");
+  checkConversationResponse(lookup, "No other user has that exact username. Enter someone else’s username, not your own.");
   const found = userLookupResponseSchema.safeParse(await lookup.json());
   signal.throwIfAborted();
   if (!found.success) throw new ConversationLookupError("Could not read the search result. Please try again.");
@@ -25,10 +27,10 @@ export async function openConversation(username: string, userId: string, signal:
 
   const response = await request("/api/conversations", {
     method: "POST", credentials: "include", cache: "no-store", signal,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Expected-User-Id": userId },
     body: JSON.stringify({ otherUserId: found.data.user.id }),
   });
-  checkResponse(response, "That account is no longer available. Search again.");
+  checkConversationResponse(response, "That account is no longer available. Search again.");
   const opened = conversationResponseSchema.safeParse(await response.json());
   signal.throwIfAborted();
   if (!opened.success || opened.data.conversation.peer.id !== found.data.user.id) {

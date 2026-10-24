@@ -12,6 +12,10 @@ export async function createConversation(request: Request, response: Response) {
     const session = await getVerifiedSession(request, response, "Sign in to start a conversation.");
     if (!session) return;
 
+    if (request.get("X-Expected-User-Id") && request.get("X-Expected-User-Id") !== session.user.id) {
+      return response.status(403).json({ error: "The signed-in account has changed." });
+    }
+
     if (request.get("Origin") !== new URL(config.BETTER_AUTH_URL).origin) {
       return response.status(403).json({ error: "Invalid request origin." });
     }
@@ -41,6 +45,10 @@ export async function getConversations(request: Request, response: Response) {
   try {
     const session = await getVerifiedSession(request, response, "Sign in to view conversations.");
     if (!session) return;
+
+    if (request.get("X-Expected-User-Id") && request.get("X-Expected-User-Id") !== session.user.id) {
+      return response.status(403).json({ error: "The signed-in account has changed." });
+    }
 
     const parsed = conversationListQuerySchema.safeParse(request.query);
     if (!parsed.success) {
