@@ -68,3 +68,49 @@ samples, p95 124.22 ms, max 127.65 ms. No rejected/uncertain sends, retries,
 timeouts, missing recipients, stored duplicates or raw transport duplicates.
 All 30 sockets stayed connected. Raw evidence: `/tmp/convox-release/load-dry-final/`.
 This small run verifies accounting/integration, not baseline capacity.
+
+## Local baseline (2026-10-24): passed within the measured scope
+
+Tested commit: `2d0d10268362b5f8becd38e25c560624a18d256a`.
+Node 24.22.1 on Apple M4 (10 CPUs, 16 GiB host memory); Docker 29.4.3
+Linux VM (10 CPUs, approximately 7.75 GiB memory). All dependencies, replicas
+and driver shared this host. No throughput optimization was needed for this run.
+
+| Measurement | Result |
+| --- | --- |
+| Connected views, start/end | 500 / 500 |
+| Replica distribution | 167 / 167 / 166 |
+| Warmup | 10 seconds at 50 new logical messages/second |
+| Measured profile | 50 new logical messages/second for 300 seconds |
+| Offering duration | 300,001.37 ms |
+| Offered / accepted | 15,000 / 15,000 |
+| Rejected / uncertain / retried | 0 / 0 / 0 |
+| Timeouts / request errors / driver overload | 0 / 0 / 0 |
+| Recipient receipts | 75,000 of 75,000 expected |
+| Missing storage/receipts | 0 |
+| Stored / raw transport duplicates | 0 / 0 |
+| Cross-instance receipt samples | 50,000 |
+| Latency min / p50 | 3.23 / 53.22 ms |
+| Latency p95 / p99 | 100.97 / 107.46 ms |
+| Latency maximum | 508.71 ms |
+
+The p95 target (<500 ms) passed; the maximum is retained rather than filtered.
+Independent artifact inspection reproduced the p95, verified 15,000 unique
+logical/canonical IDs and all five recipient receipts per accepted message.
+The driver reconciled all measured IDs against PostgreSQL before fixture cleanup.
+Per-instance sampled CPU peaks were 22.63%, 21.97%, 22.43% (Docker CPU units),
+and sampled memory peaks were 295.2, 265.6, 290.2 MiB. Five-minute memory samples
+do not establish long-duration memory bounds. Metrics and resource samples are
+preserved, including outbox and connection gauges.
+
+Committed evidence is under
+[`tests/load/results/2026-10-24-baseline`](../tests/load/results/2026-10-24-baseline/):
+`summary.json`, `raw.json.gz` and `environment.json`. The raw file contains only
+synthetic IDs/timings/statuses/metrics; no credentials or message bodies.
+
+Task 30's **local baseline passed**. Qualification of the identified production
+release topology remains open until Task 25 supplies staging, trusted HTTPS and
+actual deployment artifacts. This run uses direct private service traffic and
+synthetic source IPs; it does not establish gateway/TLS capacity, NAT limits,
+real browser behavior, upper-profile performance or failure-under-load recovery.
+Tasks 31/32 are separate and were not executed.

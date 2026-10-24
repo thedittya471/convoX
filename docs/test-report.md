@@ -242,3 +242,13 @@ overlap, stable uncertain-send retries, instance-crash catch-up, independent vie
 activity, account switches and restoration generation resets. Its single applied
 receipt sample was 49.27 ms; this is not a load percentile. `pnpm check` passed
 with the Task 27 backend fix; Task 28 adds script assertions/documentation only.
+
+## Tasks 29–30: harness and local baseline (2026-10-24)
+
+`pnpm check` passed with 52 existing unit tests and two new load-accounting
+self-tests. The final low-load dry run passed. The full 500-connection,
+50-message/second, five-minute local baseline then passed with 15,000 accepts,
+75,000 recipient receipts, no missing/duplicate records or receipts and
+cross-instance p95 100.97 ms. Raw artifacts and full limitations are in the
+[load report](load-recovery-report.md). Staging/real-browser release gates remain
+open; no production deployment or upper-profile qualification is claimed.
