@@ -1,4 +1,5 @@
-import type { Server as HttpServer } from "node:http";
+import { httpReady, realtimeReady } from "./readiness.js";
+import type { Server as HttpServer, IncomingMessage, ServerResponse } from "node:http";
 import { Server, type Socket } from "socket.io";
 import { createShardedAdapter } from "@socket.io/redis-adapter";
 import { fromNodeHeaders } from "better-auth/node";
@@ -35,10 +36,15 @@ export function createRealtimeServer(server: HttpServer): RealtimeServer {
     cors: { origin, credentials: true },
     allowRequest: (request, allow) => {
       if (request.headers.origin !== origin || !publisher.isReady || !subscriber.isReady) return allow(null, false);
-      void claimQuota("ip", socketIp(request), config.CHAT_IP_PER_MINUTE).then((quota) => allow(null, quota.allowed), () => allow(null, false));
+      void realtimeReady().then(async (ready) => ready && (await claimQuota("ip", socketIp(request), config.CHAT_IP_PER_MINUTE)).allowed).then((allowed) => allow(null, allowed), () => allow(null, false));
     },
   });
 
+  io.engine.use(async (_request: IncomingMessage, response: ServerResponse, next: () => void) => {
+    if (await httpReady()) return next();
+    response.writeHead(503, { "Retry-After": "1", "X-Convox-Not-Accepted": "1" });
+    response.end();
+  });
   io.use(async (socket, next) => {
 
     try {

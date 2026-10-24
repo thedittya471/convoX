@@ -106,7 +106,7 @@ async function run() {
     socket.received = [];
     socket.on("message:created", (message) => socket.received.push(messageSchema.parse(message)));
     return { socket, ready: new Promise((resolve, reject) => {
-      const deadline = setTimeout(() => reject(new Error("Socket did not become ready")), 5000);
+      const deadline = setTimeout(() => reject(new Error(`Socket did not become ready at ${server}`)), 5000);
       socket.once("realtime:ready", (value) => { clearTimeout(deadline); resolve(value); });
       socket.once("connect_error", (error) => { clearTimeout(deadline); reject(error); });
       socket.connect();

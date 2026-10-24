@@ -5,8 +5,9 @@ import { config } from "./config.js";
 export const publisher = createClient({
   url: config.REDIS_URL,
   disableOfflineQueue: true,
+  pingInterval: 2000,
   commandOptions: { timeout: 2000 },
-  socket: { connectTimeout: 2000 },
+  socket: { connectTimeout: 2000, socketTimeout: 5000 },
 });
 
 export const subscriber = publisher.duplicate();

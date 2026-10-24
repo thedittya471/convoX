@@ -9,6 +9,7 @@ import * as messageSchema from "./schema/message.schema.js";
 export const pool = new Pool({
   connectionString: config.DATABASE_URL,
   max: 10,
+  application_name: config.INSTANCE_ID,
   connectionTimeoutMillis: 2000,
   query_timeout: 2000,
   idleTimeoutMillis: 30000,

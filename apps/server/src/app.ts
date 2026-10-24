@@ -1,3 +1,4 @@
+import { httpReady, realtimeReady } from "./utils/readiness.js";
 import { randomUUID } from "node:crypto";
 import express from "express";
 import { toNodeHandler } from "better-auth/node";
@@ -9,7 +10,6 @@ import { pool } from "./db/client.js";
 import { auth } from "./utils/auth.js";
 import { usersRouter } from "./routes/users.js";
 import { conversationsRouter } from "./routes/conversations.js";
-import { publisher, subscriber } from "./utils/redis.js";
 
 const app = express();
 
@@ -39,6 +39,10 @@ app.get("/internal/metrics", async (request, response) => {
 });
 // Only the private, firewalled gateway may supply forwarded client addresses.
 app.set("trust proxy", "loopback, linklocal, uniquelocal");
+app.use(async (request, response, next) => {
+  if (!request.path.startsWith("/api/") || request.path.startsWith("/api/health/") || await httpReady()) return next();
+  response.set({ "Cache-Control": "no-store", "Retry-After": "1", "X-Convox-Not-Accepted": "1" }).status(503).json({ error: "This instance is not ready. Retry with the same message ID." });
+});
 app.all("/api/auth/*splat", toNodeHandler(auth));
 app.use(["/api/users", "/api/conversations"], limitChatIp);
 app.use(express.json({ limit: "16kb" }));
@@ -55,13 +59,17 @@ app.get("/api/health/live", (_request, response) => {
 
 app.get("/api/health/ready", async (_request, response) => {
 
-  const databaseReady = await pool.query("SELECT 1").then(() => true, () => false);
-  const ready = databaseReady && publisher.isReady && subscriber.isReady;
+  const ready = await httpReady();
 
   response.status(ready ? 200 : 503).set("Cache-Control", "no-store").json({
     status: ready ? "ok" : "unavailable",
     instanceId: config.INSTANCE_ID,
   } satisfies HealthResponse);
+});
+
+app.get("/api/health/realtime", async (_request, response) => {
+  const ready = await realtimeReady();
+  response.status(ready ? 200 : 503).set("Cache-Control", "no-store").json({ status: ready ? "ok" : "unavailable", instanceId: config.INSTANCE_ID } satisfies HealthResponse);
 });
 
 export default app;

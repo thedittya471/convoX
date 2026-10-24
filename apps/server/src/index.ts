@@ -1,3 +1,4 @@
+import { lifecycle } from "./utils/readiness.js";
 import { createServer } from "node:http";
 import app from "./app.js";
 import { config } from "./utils/config.js";
@@ -18,6 +19,9 @@ async function shutdown(exitCode: number) {
   }
 
   stopping = true;
+  lifecycle.draining = true;
+  console.log(JSON.stringify({ event: "draining", instanceId: config.INSTANCE_ID }));
+  io.local.disconnectSockets(true);
 
   const deadline = setTimeout(() => process.exit(1), 8000);
   deadline.unref();
