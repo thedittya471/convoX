@@ -20,15 +20,17 @@ All recovery operations require the current session and participant authorizatio
 
 | Situation | Current implementation | Required release behavior |
 | --- | --- | --- |
-| New browser, no checkpoint | Client defaults to `after=0`, reads oldest-first pages and reconciles live events. | Task 9/10 adds recent-history bootstrap/older pages with an explicit consistent live boundary and bounded UI memory. |
+| New browser, no checkpoint | Client defaults to `after=0`, reads oldest-first pages and reconciles live events. | API supports recent/older pages and a snapshot head; Task 10 connects a bounded UI. |
 | Long-offline browser | All stored sequences after a valid cursor can be paged; no purge exists. | Recover all retained history with no time expiry, gaps or duplicate visible effects. Network/storage faults remain retryable. |
 | Cursor equals head | Empty page, `nextAfter: null`. | Successful catch-up only after authoritative validation; retain the applied cursor. |
 | Malformed or out-of-bigint-range cursor | Shared schema rejects it, controller returns 400. | Preserve this behavior and prove it in integration tests. |
-| Valid decimal cursor ahead of head | Query returns empty success; the client may report connected. | Return 409 with stable code `CURSOR_AHEAD`; do not advance/reset silently or report synchronized. Offer explicit history rebuild preserving pending sends. |
-| A required sequence is missing or declared unavailable | Client detects non-contiguous history and retries; the server has no history-loss/reset response. | Return 410 with stable code `HISTORY_UNAVAILABLE` for a known unavailable range; fail synchronization visibly and rebuild from a declared valid boundary. Do not introduce age-based expiry under this retention policy. |
+| Valid decimal cursor ahead of head | Server returns 409 `CURSOR_AHEAD`; explicit client rebuild remains Task 3C. | Return 409 with stable code `CURSOR_AHEAD`; do not advance/reset silently or report synchronized. Offer explicit history rebuild preserving pending sends. |
+| A required sequence is missing or declared unavailable | Server returns 410 `HISTORY_UNAVAILABLE` for missing boundaries or required page gaps; explicit client rebuild remains Task 3C. | Return 410 with stable code `HISTORY_UNAVAILABLE` for a known unavailable range; fail synchronization visibly and rebuild from a declared valid boundary. Do not introduce age-based expiry under this retention policy. |
 | Database restored to an earlier snapshot | No restore-generation/reset protocol exists. A stale numeric cursor may still look valid, and accepted messages newer than backup can be absent. | Invalidate all pre-restore checkpoints, including numerically valid ones. Use a restoration generation/reset mechanism or equivalent proven full-client invalidation; old clients must not merge incompatible histories. Preserve pending sends for explicit reconciliation. |
 
-HTTP codes above are the selected release specification, not current wire responses. Do not classify a temporary database outage as permanent history loss. Validation of a paging boundary must use a consistent snapshot/head or equivalent atomic query so a concurrent send cannot produce a false ahead-of-head verdict. A reset must require current authorization and cannot expose a different account's history.
+The 409/410 responses are implemented; client reset and restoration invalidation remain Tasks 3B/3C. Do not classify a temporary database outage as permanent history loss. Validation of a paging boundary must use a consistent snapshot/head or equivalent atomic query so a concurrent send cannot produce a false ahead-of-head verdict. A reset must require current authorization and cannot expose a different account's history.
+
+Recent requests use `recent=true`; older requests use an exclusive positive `before` sequence. All pages return messages in ascending sequence order and the snapshot `headSequence`. Recent/older pages expose `nextBefore`; after pages retain `nextAfter`. Apply the recent window before starting catch-up from its head; older pages do not move this checkpoint. Repeatable-read transactions bound queries to the same authorized head, and the existing `(conversation_id, sequence)` index supports both scan directions. Gap detection covers the requested page and its lookahead, not an unbounded audit of earlier history.
 
 ## Backup disaster boundary
 
@@ -38,9 +40,9 @@ The no-loss guarantee for one application instance failing assumes shared storag
 
 ## Task 3 verification walkthrough
 
-1. **New device:** authenticate/verify, open an authorized conversation, bootstrap retained history, join live updates and render each canonical message once. Current default replay works in pages; recent bootstrap remains Task 9.
+1. **New device:** authenticate/verify, open an authorized conversation, bootstrap retained history, join live updates and render each canonical message once. Recent bootstrap/older paging is implemented in the API; browser integration remains Task 10.
 2. **Long-offline device:** replay exclusive of its last applied valid sequence over retained history; do not expire merely because it is old. Detect gaps and do not report successful catch-up until reconciled.
-3. **Future cursor:** syntax can be valid while exceeding the stored head. Required 409 `CURSOR_AHEAD` leads to explicit rebuild with the pending outbox preserved. Current empty-success gap is tracked as Task 3A/9.
+3. **Future cursor:** syntax can be valid while exceeding the stored head. Required 409 `CURSOR_AHEAD` leads to explicit rebuild with the pending outbox preserved. Server enforcement is implemented; explicit client recovery remains Task 3C.
 4. **Restored database:** use a new recovery generation or equivalent proven invalidation, reject old checkpoints, disclose the restore cutoff, rebuild from canonical history and reconcile pending sends without claiming recovery beyond the backup. Task 3B specifies the cross-client invalidation proof; Task 26 measures the restore.
 
 These walkthroughs verify that each case has a defined expected outcome. They are not runtime test evidence. Required follow-ups are recorded as Tasks 3A–3C in the checklist; their behavior must pass before release.

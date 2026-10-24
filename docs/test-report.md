@@ -53,3 +53,15 @@ Added account-keyed cursor list paging (20/page), empty/loading/retry states, pu
 - Initial lint findings were corrected with promise callbacks for asynchronous effect results and an explicit account-refresh button; no rule suppression.
 - Browser/mobile interaction and broader suites omitted at the owner's request. No claim of runtime browser verification. No dependency or migration added.
 - `git diff --check` passed. Disposable stack/volume and generated secret removed; existing services/env files preserved.
+
+
+## Task 9 — Bounded recent-history API and Task 3A
+
+Implemented `recent=true` bootstrap and exclusive `before` paging with ascending output, bounded limits and `nextBefore`. Existing default/explicit `after` catch-up remains compatible. Every response adds `headSequence`; repeatable-read transactions keep authorization, head, boundary validation and page reads consistent. Ahead cursors return 409 `CURSOR_AHEAD`; missing boundary records or required page/lookahead gaps return 410 `HISTORY_UNAVAILABLE`. Database failures remain retryable 503. No migration, purge or new dependency.
+
+- `pnpm check`: PASS (build, types, lint and initial unit checks).
+- Final `pnpm test`: PASS, 26 tests, including new pagination-mode and history/error contract assertions.
+- `pnpm test:messages`: PASS against three isolated replicas. Covers empty history, exclusive recent/older pages, catch-up after a new send during pagination, ahead/missing cursors, synthetic history loss, authorization, atomic rollback/retries and crash persistence. Fixture correction uses actual message identity because the pre-existing cross-conversation race can consume an extra sequence; each run also uses a fresh test IP to avoid sharing signup limits.
+- PostgreSQL EXPLAIN on 10,000 temporary fixture rows confirmed `message_conversation_sequence_idx` for ascending catch-up and descending older scans. The fixture transaction rolls back.
+
+The disposable `convox-task9` project used fresh storage and existing local image dependencies with the final compiled service/controller/contracts and integration script copied into its replicas. The stack and its volume were removed afterward; existing development services and env files were untouched. No browser, broad auth/realtime/client suites, deployment or production-load checks were run. Restoration invalidation and explicit client recovery remain Tasks 3B/3C; history UI remains Task 10. Reverting this commit needs no schema rollback.

@@ -70,6 +70,10 @@ export async function getMessages(request: Request, response: Response) {
       return response.status(404).json({ error: "Conversation not found." });
     }
 
+    if ("code" in result) {
+      return response.status(result.code === "CURSOR_AHEAD" ? 409 : 410).json(result);
+    }
+
     return response.json(result);
 
   } catch {

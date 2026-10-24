@@ -56,8 +56,12 @@ export const messageSequenceSchema = z.string().max(19).regex(/^(0|[1-9]\d{0,18}
 
 export const messageListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
-  after: messageSequenceSchema.default("0"),
-}).strict();
+  after: messageSequenceSchema.optional(),
+  before: messageSequenceSchema.refine((value) => value !== "0").optional(),
+  recent: z.literal("true").optional(),
+}).strict().refine((value) => [value.after, value.before, value.recent].filter((item) => item !== undefined).length <= 1,
+  "Choose only one pagination mode").transform((value) =>
+  value.before === undefined && value.recent === undefined ? { ...value, after: value.after ?? "0" } : value);
 
 export const messageSchema = z.object({
   id: z.uuid(),
@@ -73,6 +77,15 @@ export const messageResponseSchema = z.object({ message: messageSchema });
 export const messageListResponseSchema = z.object({
   messages: z.array(messageSchema),
   nextAfter: messageSequenceSchema.nullable(),
+});
+
+export const messageHistoryPageSchema = messageListResponseSchema.extend({
+  headSequence: messageSequenceSchema,
+  nextBefore: messageSequenceSchema.nullable(),
+});
+export const messageHistoryErrorSchema = z.object({
+  code: z.enum(["CURSOR_AHEAD", "HISTORY_UNAVAILABLE"]),
+  error: z.string().min(1),
 });
 
 export type CreateMessage = z.infer<typeof createMessageSchema>;

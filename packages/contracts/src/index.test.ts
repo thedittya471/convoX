@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { healthResponseSchema, usernameSchema, createConversationSchema, conversationListQuerySchema, conversationSchema, createMessageSchema, messageListQuerySchema, messageSchema } from "./index.js";
+import { healthResponseSchema, usernameSchema, createConversationSchema, conversationListQuerySchema, conversationSchema, createMessageSchema, messageListQuerySchema, messageSchema, messageHistoryErrorSchema, messageHistoryPageSchema } from "./index.js";
 
 test("health responses require a known status and an instance identity", () => {
   assert.equal(healthResponseSchema.safeParse({ status: "ok", instanceId: "server-1" }).success, true);
@@ -56,8 +56,24 @@ test("message sends require a stable client ID and a bounded opaque payload", ()
 test("message cursors preserve bigint precision and reject ambiguous pagination", () => {
   assert.deepEqual(messageListQuerySchema.parse({}), { limit: 20, after: "0" });
   assert.equal(messageListQuerySchema.parse({ after: "9223372036854775807" }).after, "9223372036854775807");
-  for (const invalid of [{ after: "9223372036854775808" }, { after: "01" }, { after: "-1" }, { after: "1.5" }, { after: ["1", "2"] }, { limit: 0 }, { limit: 101 }, { limit: ["1", "2"] }, { before: "2" }]) {
+  for (const invalid of [{ after: "9223372036854775808" }, { after: "01" }, { after: "-1" }, { after: "1.5" }, { after: ["1", "2"] }, { limit: 0 }, { limit: 101 }, { limit: ["1", "2"] }]) {
     assert.equal(messageListQuerySchema.safeParse(invalid).success, false);
   }
   assert.equal(messageSchema.safeParse({ id: "00000000-0000-4000-8000-000000000001", conversationId: "00000000-0000-4000-8000-000000000002", senderId: "user-1", clientMessageId: "00000000-0000-4000-8000-000000000003", sequence: "9007199254740993", encryptedPayload: "opaque", createdAt: "2026-01-01T00:00:00.123Z" }).success, true);
+});
+
+
+test("recent and older history modes have exclusive bounded cursors", () => {
+  assert.deepEqual(messageListQuerySchema.parse({ recent: "true", limit: "2" }), { recent: "true", limit: 2 });
+  assert.deepEqual(messageListQuerySchema.parse({ before: "9007199254740993" }), { before: "9007199254740993", limit: 20 });
+  for (const value of [{ before: "0" }, { before: "2", after: "0" }, { recent: "true", after: "0" }, { recent: "true", before: "2" }, { recent: "false" }, { recent: ["true", "true"] }]) {
+    assert.equal(messageListQuerySchema.safeParse(value).success, false);
+  }
+});
+
+
+test("history pages and recovery errors carry explicit boundaries", () => {
+  assert.equal(messageHistoryPageSchema.safeParse({ messages: [], nextAfter: null, nextBefore: null, headSequence: "0" }).success, true);
+  for (const code of ["CURSOR_AHEAD", "HISTORY_UNAVAILABLE"]) assert.equal(messageHistoryErrorSchema.safeParse({ code, error: "Rebuild history." }).success, true);
+  assert.equal(messageHistoryErrorSchema.safeParse({ code: "UNKNOWN", error: "Retry" }).success, false);
 });

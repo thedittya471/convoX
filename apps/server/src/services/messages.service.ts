@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, gt, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt, lte, or } from "drizzle-orm";
 import type { CreateMessage, Message, MessageListQuery } from "@convox/contracts";
 import { db } from "../db/client.js";
 import { conversation } from "../db/schema/conversation.schema.js";
@@ -55,28 +55,45 @@ export async function createMessage(userId: string, conversationId: string, inpu
   });
 }
 
-export async function listMessages(userId: string, conversationId: string, { limit, after }: MessageListQuery) {
+export async function listMessages(userId: string, conversationId: string, query: MessageListQuery) {
 
-  const [chat] = await db.select({ id: conversation.id })
-    .from(conversation)
-    .where(and(
-      eq(conversation.id, conversationId),
-      or(eq(conversation.directUserLowId, userId), eq(conversation.directUserHighId, userId))
-    ));
+  // One snapshot keeps the counter, cursor validation and page consistent during sends.
+  return db.transaction(async (transaction) => {
+    const [chat] = await transaction.select({ head: conversation.lastMessageSequence })
+      .from(conversation)
+      .where(and(eq(conversation.id, conversationId),
+        or(eq(conversation.directUserLowId, userId), eq(conversation.directUserHighId, userId))));
+    if (!chat) return null;
 
-  if (!chat) {
-    return null;
-  }
+    const backwards = query.recent !== undefined || query.before !== undefined;
+    const cursor = BigInt(query.before ?? query.after ?? "0");
+    if (cursor > chat.head) return { code: "CURSOR_AHEAD" as const, error: "The cursor exceeds the current history. Rebuild history." };
+    const unavailable = { code: "HISTORY_UNAVAILABLE" as const, error: "Required message history is unavailable. Rebuild history." };
+    if (cursor > 0n) {
+      const [boundary] = await transaction.select({ id: message.id }).from(message)
+        .where(and(eq(message.conversationId, conversationId), eq(message.sequence, cursor)));
+      if (!boundary) return unavailable;
+    }
 
-  const rows = await db.select().from(message)
-    .where(and(eq(message.conversationId, conversationId), gt(message.sequence, BigInt(after))))
-    .orderBy(asc(message.sequence))
-    .limit(limit + 1);
+    const boundary = backwards ? (query.before === undefined ? chat.head + 1n : cursor) : cursor;
+    const rows = await transaction.select().from(message)
+      .where(and(eq(message.conversationId, conversationId), lte(message.sequence, chat.head),
+        backwards ? lt(message.sequence, boundary) : gt(message.sequence, boundary)))
+      .orderBy(backwards ? desc(message.sequence) : asc(message.sequence))
+      .limit(query.limit + 1);
+    const available = backwards ? boundary - 1n : chat.head - boundary;
+    const expectedCount = Number(available < BigInt(query.limit + 1) ? available : BigInt(query.limit + 1));
+    if (rows.length !== expectedCount || rows.some((row, index) =>
+      row.sequence !== (backwards ? boundary - BigInt(index + 1) : boundary + BigInt(index + 1)))) return unavailable;
 
-  const page = rows.slice(0, limit);
-
-  return {
-    messages: page.map(serializeMessage),
-    nextAfter: rows.length > limit ? page[page.length - 1].sequence.toString() : null,
-  };
+    const page = rows.slice(0, query.limit);
+    const more = rows.length > query.limit;
+    if (backwards) page.reverse();
+    return {
+      messages: page.map(serializeMessage),
+      nextAfter: !backwards && more ? page[page.length - 1].sequence.toString() : null,
+      nextBefore: backwards && more ? page[0].sequence.toString() : null,
+      headSequence: chat.head.toString(),
+    };
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }

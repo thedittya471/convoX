@@ -35,11 +35,12 @@ if (!process.argv.includes("--run")) {
 }
 
 async function run() {
-  const { messageResponseSchema, messageListResponseSchema } = await import("../../packages/contracts/dist/index.js");
+  const { messageResponseSchema, messageHistoryPageSchema, messageHistoryErrorSchema } = await import("../../packages/contracts/dist/index.js");
   const { pool } = await import("../../apps/server/dist/db/client.js");
   const servers = ["http://server-1:4000", "http://server-2:4000", "http://server-3:4000"];
   const origin = new URL(process.env.BETTER_AUTH_URL).origin;
   const suffix = randomUUID();
+  const fixtureIp = `198.29.${randomBytes(1)[0]}.${randomBytes(1)[0]}`;
   const actors = [];
   const emails = Array.from({ length: 3 }, (_value, index) => `message-test-${suffix}-${index}@example.com`);
   const triggerName = `message_test_${suffix.replaceAll("-", "")}`;
@@ -47,7 +48,7 @@ async function run() {
   async function request(path, { actor, body, server = servers[0], requestOrigin = origin, expectedUserId } = {}) {
     return fetch(`${server}${path}`, {
       method: body === undefined ? "GET" : "POST",
-      headers: { ...(actor ? { cookie: actor.cookie } : {}), ...(requestOrigin ? { origin: requestOrigin } : {}), ...(expectedUserId ? { "X-Expected-User-Id": expectedUserId } : {}), ...(body === undefined ? {} : { "content-type": "application/json" }) },
+      headers: { "x-real-ip": fixtureIp, ...(actor ? { cookie: actor.cookie } : {}), ...(requestOrigin ? { origin: requestOrigin } : {}), ...(expectedUserId ? { "X-Expected-User-Id": expectedUserId } : {}), ...(body === undefined ? {} : { "content-type": "application/json" }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       signal: AbortSignal.timeout(10000),
     });
@@ -63,7 +64,7 @@ async function run() {
     const response = await request(`/api/conversations/${id}/messages${query}`, { actor, server });
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("cache-control"), "no-store");
-    return messageListResponseSchema.parse(await response.json());
+    return messageHistoryPageSchema.parse(await response.json());
   }
 
   try {
@@ -95,10 +96,14 @@ async function run() {
       assert.equal((await request(path, { actor: alice, body: invalid })).status, 400);
     }
     assert.equal((await request("/api/conversations/invalid/messages", { actor: alice, body })).status, 400);
-    for (const query of ["?after=-1", "?after=01", "?after=9223372036854775808", "?after=1&after=2", "?limit=0", "?limit=101", "?limit=1&limit=2", "?userId=other"]) {
+    for (const query of ["?after=-1", "?after=01", "?after=9223372036854775808", "?after=1&after=2", "?limit=0", "?limit=101", "?limit=1&limit=2", "?userId=other", "?after=0&recent=true", "?before=0", "?before=2&after=0"]) {
       assert.equal((await request(`${path}${query}`, { actor: alice })).status, 400);
     }
-    assert.deepEqual(await readHistory(bob, id), { messages: [], nextAfter: null });
+    assert.deepEqual(await readHistory(bob, id), { messages: [], nextAfter: null, nextBefore: null, headSequence: "0" });
+
+    assert.deepEqual(await readHistory(bob, id, "?recent=true"), { messages: [], nextAfter: null, nextBefore: null, headSequence: "0" });
+    assert.equal((await request(`${path}?after=1`, { actor: alice })).status, 409);
+    assert.equal((await request(`${path}?recent=true`, { actor: outsider })).status, 404);
 
     const retries = await Promise.all(Array.from({ length: 4 }, (_value, index) => request(path, { actor: alice, body, server: servers[index % 3] })));
     assert.equal(retries.filter((response) => response.status === 201).length, 1);
@@ -149,11 +154,58 @@ async function run() {
     assert.equal(new Set(collected.map((item) => item.id)).size, collected.length);
     assert.deepEqual(collected.map((item) => item.sequence), collected.map((_item, index) => String(index + 1)));
     assert.deepEqual((await readHistory(bob, id, `?after=${duringPagination.sequence}`)).messages, []);
+    const recent = await readHistory(bob, id, "?recent=true&limit=3");
+    assert.deepEqual(recent.messages, collected.slice(-3));
+    assert.equal(recent.headSequence, duringPagination.sequence);
+    const live = await readMessage(await request(path, { actor: alice, body: { clientMessageId: randomUUID(), encryptedPayload: "after-bootstrap" } }));
+    const older = [...recent.messages];
+    let before = recent.nextBefore;
+    while (before) {
+      const next = await readHistory(bob, id, `?before=${before}&limit=3`);
+      older.unshift(...next.messages);
+      before = next.nextBefore;
+    }
+    assert.deepEqual(older, collected, "older pages meet the initial window without gaps or duplicates");
+    assert.deepEqual((await readHistory(bob, id, `?after=${recent.headSequence}`)).messages, [live]);
+    collected.push(live);
+    for (const mode of ["after", "before"]) {
+      const response = await request(`${path}?${mode}=${BigInt(live.sequence) + 1n}`, { actor: alice });
+      assert.equal(response.status, 409);
+      assert.equal(messageHistoryErrorSchema.parse(await response.json()).code, "CURSOR_AHEAD");
+    }
+    // Restore synthetic history loss after checking recovery errors.
+    try {
+      await pool.query("DELETE FROM message WHERE id = $1", [second.id]);
+      for (const query of ["?after=0&limit=100", `?after=${second.sequence}`, `?before=${BigInt(second.sequence) + 1n}&limit=100`, "?recent=true&limit=100"]) {
+        const response = await request(`${path}${query}`, { actor: bob });
+        assert.equal(response.status, 410);
+        assert.equal(messageHistoryErrorSchema.parse(await response.json()).code, "HISTORY_UNAVAILABLE");
+      }
+    } finally {
+      await pool.query("INSERT INTO message (id, conversation_id, sender_id, client_message_id, sequence, encrypted_payload, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+        [second.id, second.conversationId, second.senderId, second.clientMessageId, second.sequence, second.encryptedPayload, second.createdAt]);
+      await pool.query("INSERT INTO message_outbox (message_id, published_at) VALUES ($1, now())", [second.id]);
+    }
+
     const stored = await pool.query("SELECT m.id, m.encrypted_payload, o.published_at FROM message m JOIN message_outbox o ON o.message_id = m.id WHERE m.conversation_id = $1", [id]);
     assert.equal(stored.rowCount, collected.length);
     assert.ok(stored.rows.every((item) => item.published_at === null || item.published_at instanceof Date));
     assert.equal(stored.rows.find((item) => item.id === first.id).encrypted_payload, body.encryptedPayload);
     assert.equal((await pool.query("SELECT id FROM message WHERE sender_id = $1 AND client_message_id = $2", [alice.id, body.clientMessageId])).rowCount, 1);
+
+    const planner = await pool.connect();
+    try {
+      await planner.query("BEGIN");
+      await planner.query("INSERT INTO message (id, conversation_id, sender_id, client_message_id, sequence, encrypted_payload) SELECT gen_random_uuid(), $1, $2, gen_random_uuid(), n, 'plan-fixture' FROM generate_series(1000, 10999) n", [id, alice.id]);
+      await planner.query("ANALYZE message");
+      for (const [condition, order] of [["sequence > 5000 AND sequence <= 10999", "ASC"], ["sequence < 5000", "DESC"]]) {
+        const plan = await planner.query(`EXPLAIN (FORMAT JSON) SELECT * FROM message WHERE conversation_id = $1 AND ${condition} ORDER BY sequence ${order} LIMIT 21`, [id]);
+        assert.match(JSON.stringify(plan.rows), /message_conversation_sequence_idx/, "bounded history should use the conversation/sequence index");
+      }
+    } finally {
+      await planner.query("ROLLBACK");
+      planner.release();
+    }
 
     const resumed = new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error("Restart controller did not respond")), 60000);
@@ -165,7 +217,7 @@ async function run() {
     const retry = await request(path, { actor: alice, body, server: servers[0] });
     assert.equal(retry.status, 200);
     assert.deepEqual(await readMessage(retry), first, "restarted instance must return the original send");
-    console.log("Message integration passed: authorization, atomic rollback/outbox, cross-instance retries/conflicts, ordered catch-up, and persistence after an abrupt instance restart.");
+    console.log("Message integration passed: authorization, atomic rollback/outbox, cross-instance retries/conflicts, recent/older bootstrap, recovery boundaries, indexed pagination, ordered catch-up, and persistence after an abrupt instance restart.");
   } finally {
     await pool.query(`DROP TRIGGER IF EXISTS ${triggerName} ON message_outbox`);
     await pool.query(`DROP FUNCTION IF EXISTS ${triggerName}()`);
