@@ -120,3 +120,7 @@ Successful sign-in/signup posts a session notification through Better Auth's exi
 The test project used fresh storage and existing dependency images with final compiled server/contracts/migrations, client/outbox sources and integration scripts copied into isolated replicas. Cleanup removes only that project, its volume and its temporary environment file. Development services and their data/env files were untouched. The frontend build was checked locally; its browser interactions were not exercised against the reused image.
 
 Real multi-tab browser storage events, focus/visibility behavior, account switching and reload were omitted by owner request. Scripted clients/fake IndexedDB establish cleanup and queue behavior, not real-browser qualification; Task 14 retains the full browser journey. No production deployment or broad unrelated suite was run.
+
+## Task 14: browser qualification deferred by owner instruction
+
+Tasks 14–20 were authorized with script-only verification and no browser execution. [The reproducible scenario checklist](browser-verification.md) records the required real-cookie/IndexedDB, narrow-layout, keyboard, offline and session cases. No browser runner or CI job was added without an opportunity to exercise it. Task 14 remains pending; Node script results are not browser evidence. Tasks 15–20 do not depend on Task 14.
