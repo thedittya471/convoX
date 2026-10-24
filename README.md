@@ -336,3 +336,5 @@ A separate [Docker-host deployment template](docs/deployment.md) provides TLS, p
 Security review and dependency dispositions: [docs/security-review.md](docs/security-review.md). Local capacity/recovery evidence: [docs/load-recovery-report.md](docs/load-recovery-report.md).
 
 Release references: [HTTP/OpenAPI](docs/openapi.json), [realtime protocol](docs/realtime.md), [database](docs/database.md), [architecture and ADRs](docs/architecture.md).
+
+Run the deterministic CI-equivalent checks with `pnpm test:ci` (Docker required); it builds and removes its own isolated stack. See [release evidence and blockers](docs/release-evidence.md), [concepts draft](CONCEPTS.md) and [observed errors](ERRORS.md).

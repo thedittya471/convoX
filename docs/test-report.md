@@ -280,3 +280,14 @@ bootstrap, send/retry, history/list and explicit error cases matched. The schema
 snapshot matches all 17 public tables after migrations 0000–0006 and every
 retained migration-created index; it includes the Drizzle journal and no data.
 Real public staging examples remain a Task 25 release gate. No browser was opened.
+
+## Task 37: rebuilt isolated CI-equivalent run (2026-10-24)
+
+`pnpm test:ci` passed: build/types/lint, 54 unit/accounting tests, patched parser
+regression, synthetic production configuration and sanitization self-check, then
+all 29 isolated stack steps. Fresh frozen-lockfile images, migration-before-start,
+sequential auth/message/client/activity/abuse/metrics/gateway/dependency/example
+suites, SMTP failure and fenced encrypted restoration passed. Unconditional
+cleanup and existing-service preservation were independently checked. See
+release-evidence.md and ci-local-summary.json. Remote Actions, browser testing,
+real staging and final-image performance qualification remain explicit blockers.

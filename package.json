@@ -41,7 +41,9 @@
     "test:load": "node --test tests/load/accounting.test.mjs",
     "load": "node tests/load/run.mjs",
     "test:security": "node tests/security/compressed-body.mjs",
-    "test:api-reference": "docker compose exec -T server-2 node tests/integration/api-reference.mjs"
+    "test:api-reference": "docker compose exec -T server-2 node tests/integration/api-reference.mjs",
+    "test:stack": "node scripts/check-stack.mjs",
+    "test:ci": "pnpm check && pnpm test:security && pnpm test:production && node scripts/check-stack.mjs --self-test && pnpm test:stack"
   },
   "keywords": [],
   "author": "",

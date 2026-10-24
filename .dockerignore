@@ -11,3 +11,7 @@ coverage
 secrets/
 *.key
 *.pem
+
+# Local planning and test evidence are not application image inputs.
+tasks/
+test-results/

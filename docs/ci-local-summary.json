@@ -1,0 +1,160 @@
+{
+  "commit": "f64fe4ec151105e96360821ade2d75acc8333f81",
+  "workingTreeChanges": [
+    "M .dockerignore",
+    " M .github/workflows/ci.yml",
+    " M package.json",
+    "?? scripts/check-stack.mjs"
+  ],
+  "node": "v24.22.1",
+  "project": "convox-test-ci-5c01424062ee",
+  "cleaned": true,
+  "results": [
+    {
+      "name": "compose",
+      "passed": true,
+      "elapsedMs": 46
+    },
+    {
+      "name": "audit",
+      "passed": true,
+      "elapsedMs": 727
+    },
+    {
+      "name": "build",
+      "passed": true,
+      "elapsedMs": 46731
+    },
+    {
+      "name": "dependencies",
+      "passed": true,
+      "elapsedMs": 7033
+    },
+    {
+      "name": "migrate",
+      "passed": true,
+      "elapsedMs": 1304
+    },
+    {
+      "name": "startup",
+      "passed": true,
+      "elapsedMs": 7122
+    },
+    {
+      "name": "gateway-port",
+      "passed": true,
+      "elapsedMs": 61
+    },
+    {
+      "name": "smoke",
+      "passed": true,
+      "elapsedMs": 7317
+    },
+    {
+      "name": "auth",
+      "passed": true,
+      "elapsedMs": 4406
+    },
+    {
+      "name": "conversations",
+      "passed": true,
+      "elapsedMs": 1086
+    },
+    {
+      "name": "messages",
+      "passed": true,
+      "elapsedMs": 9008
+    },
+    {
+      "name": "realtime",
+      "passed": true,
+      "elapsedMs": 14993
+    },
+    {
+      "name": "client-sync",
+      "passed": true,
+      "elapsedMs": 18725
+    },
+    {
+      "name": "presence",
+      "passed": true,
+      "elapsedMs": 45396
+    },
+    {
+      "name": "typing",
+      "passed": true,
+      "elapsedMs": 44411
+    },
+    {
+      "name": "limits",
+      "passed": true,
+      "elapsedMs": 1065
+    },
+    {
+      "name": "sockets",
+      "passed": true,
+      "elapsedMs": 2271
+    },
+    {
+      "name": "metrics",
+      "passed": true,
+      "elapsedMs": 380
+    },
+    {
+      "name": "gateway",
+      "passed": true,
+      "elapsedMs": 7335
+    },
+    {
+      "name": "outages",
+      "passed": true,
+      "elapsedMs": 3175
+    },
+    {
+      "name": "api-reference",
+      "passed": true,
+      "elapsedMs": 765
+    },
+    {
+      "name": "smtp-stop",
+      "passed": true,
+      "elapsedMs": 485
+    },
+    {
+      "name": "smtp-outage",
+      "passed": true,
+      "elapsedMs": 15617
+    },
+    {
+      "name": "smtp-return",
+      "passed": true,
+      "elapsedMs": 198
+    },
+    {
+      "name": "backup-fence",
+      "passed": true,
+      "elapsedMs": 377
+    },
+    {
+      "name": "backup-helper",
+      "passed": true,
+      "elapsedMs": 490
+    },
+    {
+      "name": "backup",
+      "passed": true,
+      "elapsedMs": 2907
+    },
+    {
+      "name": "backup-return",
+      "passed": true,
+      "elapsedMs": 6227
+    },
+    {
+      "name": "cleanup",
+      "passed": true,
+      "elapsedMs": 2604
+    }
+  ],
+  "passed": true
+}

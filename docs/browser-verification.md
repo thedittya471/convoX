@@ -13,3 +13,14 @@ Use two isolated browser profiles against a disposable, migrated three-replica g
 7. With shared activity implemented, keep two Bob tabs on different replicas: closing one keeps Bob online; closing/crashing the final one clears presence within 30 seconds. Typing stops on send, blur, inactivity, disconnect and view switch; loss of routing reports unavailable.
 
 Release evidence remains incomplete until these scenarios run in actual browsers. Script suites remain the primary automated regression checks while this gate is pending.
+
+## CI boundary and runnable checks
+
+`pnpm test:ci` runs deterministic Node integration and fake-IndexedDB client
+checks on a rebuilt disposable stack; it intentionally never starts a browser.
+`pnpm test:client-sync` can run separately against an already started, migrated
+mail-capture stack. Neither command is a real-browser runner. Browser automation
+is not yet implemented/qualified, so Task 37's browser-runner requirement stays
+open with Task 14. Once browser testing is authorized, exercise the scenarios
+above in isolated profiles and establish a deterministic runner before adding a
+new browser dependency or claiming browser CI coverage.
