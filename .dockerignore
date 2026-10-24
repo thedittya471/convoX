@@ -6,3 +6,8 @@
 **/.env.*
 .git
 coverage
+
+# Deployment credentials belong outside build/source contexts.
+secrets/
+*.key
+*.pem

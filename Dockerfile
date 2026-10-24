@@ -1,4 +1,5 @@
-FROM node:24-bookworm-slim AS dependencies
+ARG NODE_IMAGE=node:24-bookworm-slim
+FROM ${NODE_IMAGE} AS dependencies
 WORKDIR /app
 RUN npm install --global pnpm@11.28.6
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./

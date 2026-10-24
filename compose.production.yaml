@@ -1,0 +1,84 @@
+# Standalone Docker-host template. Validate inputs before startup; do not merge with development ports.
+x-server: &server
+  image: ${SERVER_IMAGE:?Set an immutable server image digest}
+  init: true
+  restart: unless-stopped
+  stop_grace_period: 10s
+  command: [node, --env-file=/run/secrets/server_env, apps/server/dist/index.js]
+  secrets: [server_env]
+  networks: [edge, data]
+  environment: &server-env
+    NODE_ENV: production
+    DEPLOYMENT_MODE: production
+    PORT: 4000
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_started }
+  healthcheck:
+    test: [CMD, node, -e, "fetch('http://127.0.0.1:4000/api/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+    interval: 5s
+    timeout: 3s
+    retries: 5
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:?Set an immutable PostgreSQL image digest}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: convox
+      POSTGRES_DB: convox
+      POSTGRES_PASSWORD_FILE: /run/secrets/database_password
+    secrets: [database_password]
+    networks: [data]
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U convox -d convox]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  redis:
+    image: ${REDIS_IMAGE:?Set an immutable Redis image digest}
+    restart: unless-stopped
+    command: [redis-server, --aclfile, /run/secrets/redis_acl, --save, "", --appendonly, "no"]
+    secrets: [redis_acl]
+    networks: [data]
+  server-1:
+    <<: *server
+    environment: { <<: *server-env, INSTANCE_ID: server-1 }
+  server-2:
+    <<: *server
+    environment: { <<: *server-env, INSTANCE_ID: server-2 }
+  server-3:
+    <<: *server
+    environment: { <<: *server-env, INSTANCE_ID: server-3 }
+  web:
+    image: ${WEB_IMAGE:?Set an immutable web image digest}
+    init: true
+    restart: unless-stopped
+    networks: [edge]
+  nginx:
+    image: ${NGINX_IMAGE:?Set an immutable NGINX image digest}
+    restart: unless-stopped
+    environment: { PUBLIC_HOST: "${PUBLIC_HOST:?Set the public HTTPS hostname}" }
+    ports: ["80:80", "443:443"]
+    volumes: [./infra/nginx.production.conf.template:/etc/nginx/templates/default.conf.template:ro]
+    secrets: [tls_certificate, tls_private_key]
+    networks: [edge]
+    depends_on:
+      server-1: { condition: service_healthy }
+      server-2: { condition: service_healthy }
+      server-3: { condition: service_healthy }
+      web: { condition: service_started }
+networks:
+  edge:
+    ipam:
+      config: [{ subnet: "${EDGE_SUBNET:-172.30.0.0/24}" }]
+  data:
+    internal: true
+volumes:
+  postgres-data:
+secrets:
+  server_env: { file: "${SERVER_ENV_FILE:?Set the protected server environment file}" }
+  database_password: { file: "${DATABASE_PASSWORD_FILE:?Set the protected database password file}" }
+  redis_acl: { file: "${REDIS_ACL_FILE:?Set the protected Redis ACL file}" }
+  tls_certificate: { file: "${TLS_CERTIFICATE_FILE:?Set the certificate file}" }
+  tls_private_key: { file: "${TLS_PRIVATE_KEY_FILE:?Set the protected TLS key file}" }

@@ -21,3 +21,7 @@ next-env.d.ts
 .vercel/
 
 tasks/
+# Deployment credentials belong outside build/source contexts.
+secrets/
+*.key
+*.pem

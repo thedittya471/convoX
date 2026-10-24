@@ -330,3 +330,5 @@ Default shared HTTP quotas per minute are 300 requests per source IP before chat
 Use `pnpm test:presence`, `pnpm test:typing` and `pnpm test:limits` against a disposable migrated stack. The activity scripts stop Redis and kill a replica, restore services, and remove synthetic fixtures; run all fault suites sequentially. [Browser qualification](docs/browser-verification.md) remains pending because browser execution was excluded from these tasks.
 
 HTTP readiness now separates PostgreSQL/draining health from realtime Redis health. The gateway passively ejects 503 peers and refreshes backend DNS; shutdown immediately gates new work. See [readiness and draining](docs/operations.md#http-readiness-realtime-readiness-and-draining).
+
+A separate [Docker-host deployment template](docs/deployment.md) provides TLS, private services, mounted secrets and digest-pinned input validation. Use `pnpm test:production` for synthetic configuration checks and `pnpm validate:production .env.production` for prepared deployment files. Real staging and release approval remain pending.
