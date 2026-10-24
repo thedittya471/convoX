@@ -17,6 +17,8 @@ export async function lookupUser(request: Request, response: Response) {
       return response.status(401).json({ error: "Sign in to find someone." });
     }
 
+    if (!session.user.emailVerified) return response.status(403).json({ code: "EMAIL_NOT_VERIFIED", error: "Verify your email before using chat." });
+
     const parsed = usernameSchema.safeParse(request.query.username);
     if (!parsed.success) {
       return response.status(400).json({ error: "Use a username with 3–30 letters, numbers, underscores or dots." });

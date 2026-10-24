@@ -6,7 +6,7 @@ convoX focuses on reliable delivery across instances, shared presence and typing
 
 ## Project status
 
-The development foundation includes Next.js, Express, Better Auth email/password authentication with PostgreSQL-backed sessions, signup/login screens, backend user discovery, direct-conversation and durable message APIs, Drizzle migrations, shared contracts, checks, and a local three-instance Docker stack. Message storage supports duplicate-safe retries, ordered history and transactional outbox publishing through authenticated, cross-instance WebSockets. A standalone client module provides ordered catch-up and a persistent local send queue; it is not connected to the account UI yet. A chat UI, presence, typing and delivery metrics are not implemented. The owner approved TLS-protected, server-readable messages for the first release; end-to-end encryption and multi-device key recovery are outside that release. Email verification and password-reset delivery are not configured. The capabilities and performance figures below remain release requirements, not verified results.
+The development foundation includes Next.js, Express, Better Auth email/password authentication with PostgreSQL-backed sessions, signup/login screens, backend user discovery, direct-conversation and durable message APIs, Drizzle migrations, shared contracts, checks, and a local three-instance Docker stack. Message storage supports duplicate-safe retries, ordered history and transactional outbox publishing through authenticated, cross-instance WebSockets. A standalone client module provides ordered catch-up and a persistent local send queue; it is not connected to the account UI yet. A chat UI, presence, typing and delivery metrics are not implemented. The owner approved TLS-protected, server-readable messages for the first release; end-to-end encryption and multi-device key recovery are outside that release. SMTP email verification and resend are implemented, with verified-email gates on discovery/chat. Configure your SMTP provider before real delivery; password-reset delivery remains unimplemented. The capabilities and performance figures below remain release requirements, not verified results.
 
 ## Release scope
 
@@ -23,7 +23,7 @@ The first release uses HTTPS/WSS in deployment and server-readable message stora
 
 ### Approved release policies (2026-10-24)
 
-The owner approved exact-username discovery, editable usernames with normalization/uniqueness checks, and verified email before discovery or chat. Existing users retain login and receive a verification path. **Verification gating and browser username controls are release requirements, not current behavior.** The current development APIs still accept unverified sessions.
+The owner approved exact-username discovery, editable usernames with normalization/uniqueness checks, and verified email before discovery or chat. Existing users retain login and receive a verification path. **Verification gating is implemented for discovery, conversation/message APIs and live delivery.** Unverified users can still log in to verify/resend. Browser username controls remain a later task.
 
 Retain messages and identities until an explicitly approved deletion process; no automatic purge is authorized. Support catch-up over all retained history, without promising infinite storage or availability. The approved backup targets are daily encrypted database backups, seven-day backup retention, recovery-point objective (RPO) of 24 hours and recovery-time objective (RTO) of four hours. These are unimplemented/unproven targets until the backup/restore task passes. Restoring a backup can lose data newer than its cutoff; the single-application-instance durability guarantee does not cover that disaster scenario.
 
@@ -138,6 +138,8 @@ Express owns Better Auth at `/api/auth/*`. Its handler is mounted before the JSO
 | --- | --- |
 | Register | `POST /api/auth/sign-up/email` with name, email and password; optional username via API |
 | Log in | `POST /api/auth/sign-in/email` with email and password |
+| Resend verification | `POST /api/auth/send-verification-email` with the signed-in email |
+| Verify email | `GET /api/auth/verify-email` with the emailed token; trusted callback only |
 | Read current session | `GET /api/auth/get-session` |
 | Log out | `POST /api/auth/sign-out` |
 
@@ -158,7 +160,17 @@ Passwords must contain 12–128 characters and Better Auth handles hashing. Sess
 
 Auth rate limits are stored in PostgreSQL, shared across replicas: 100 requests/minute generally, with 5 login and 3 signup attempts/minute per client/path. Better Auth reads `X-Real-IP`; NGINX overwrites this header with the connecting address. Keep backend ports private in deployment so clients cannot spoof trusted proxy headers. Local development may use a shared fallback rate-limit bucket when that header is absent.
 
-Email verification and password-reset delivery require an email provider and remain unconfigured. Accounts created now are unverified; do not treat email ownership as proven or expose this development configuration as a finished public auth system. Configure delivery/verification, HTTPS and production secrets before launch.
+Email verification uses your SMTP provider through Nodemailer and Better Auth. Signup creates an unverified account and attempts delivery; mail failure preserves the account and login so the owner can resend. Unverified users can log in and see verification controls, but discovery, conversation/message APIs and WebSocket connections return `EMAIL_NOT_VERIFIED` until verified. Existing sessions are checked against current user verification state on HTTP operations and local live delivery. Password reset remains Task 5.
+
+Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM` (a provider-authorized bare email address), and, when required, both `SMTP_USER`/`SMTP_PASSWORD` in the server `.env` for local development and root `.env` for Compose. Use `SMTP_TLS=starttls` with port 587, or `SMTP_TLS=implicit` with port 465. TLS certificate verification stays enabled; credentials/tokens and SMTP message contents are never logged. Connections/greetings time out after five seconds, and idle SMTP operations after ten seconds. No SMTP host means delivery is unavailable; authentication still works and the verified-chat gate remains closed. Invalid partial credentials or a configured host without a sender fail configuration validation.
+
+The account page supports resend, explicit session refresh and actionable mail/rate-limit errors. Verification links expire after one hour. Each link has a unique signed token and a hashed record in the existing verification table; an atomic delete claims it once across replicas before Better Auth validates/completes verification. Reused or unavailable links lead to the account/login recovery path. Verification never automatically signs another browser into the account. Callbacks are restricted to the public origin and generated mail always returns to the fixed account page. A failed verification after claim requires resending; private links must not be pre-fetched by tools that follow every GET.
+
+Only authenticated account owners can trigger resend delivery; anonymous requests return the same generic success without sending mail. Per-client resend limits (three/minute) use Better Auth's shared database store, and an additional atomic per-account three/minute bucket holds across replicas and different client addresses. Signup retains its existing three/minute limit. Delivery failures log only a fixed event/instance ID. Gateway access logs omit query strings/referrers, and verification-route error logging is suppressed because upstream error text can contain token URLs. Keep mail-provider/proxy logging configured to redact tokens too.
+
+For local capture, run `docker compose --profile mail up -d mailpit`. Mailpit has no external relay; its UI binds to localhost:8025 and SMTP to localhost:1025 (override `MAILPIT_UI_PORT`/`MAILPIT_SMTP_PORT` if needed). Configure `SMTP_HOST=localhost` for a local backend or `SMTP_HOST=mailpit` for Compose, port 1025, `SMTP_TLS=local`, and `SMTP_FROM=convox@example.com`, without credentials. Plain SMTP is allowed only for those local hosts with an HTTP development origin. Do not expose the capture inbox publicly. Integration suites require this isolated mailbox and verify synthetic fixtures through real SMTP links; CI configures it explicitly. Production provider credentials and external inbox delivery were not exercised by the local tests.
+
+Configure HTTPS, real SMTP delivery and production secrets before launch.
 
 Runtime dependency audit currently reports a moderate advisory in a transitive esbuild version used by Drizzle tooling (`GHSA-67mh-4wv8-2f99`). The affected esbuild development-server feature is not used by these application routes. No forced dependency override was applied; reassess when upgrading Better Auth/Drizzle tooling and before release.
 
@@ -170,7 +182,7 @@ Apply the additive username migration with `pnpm db:migrate` before starting the
 
 `GET /api/users/lookup?username=alice` requires a valid session, matches a complete username case-insensitively, excludes the caller, and returns only `{ "user": { "id": "…", "username": "alice", "name": "Alice" } }`. It never returns email, session tokens, or a directory listing. Responses use `Cache-Control: no-store`. Status codes: 400 invalid input, 401 missing/expired session, 404 no other matching user, 503 temporarily unavailable. Lookup currently has no application-level rate limit.
 
-Only accounts that choose a username through the API are discoverable. Use the found user ID to open a direct conversation. Authenticated discovery intentionally reveals the display name associated with a known username. Usernames are not secret. Discovery and conversation endpoints currently have no application-level rate limits; verified signup and abuse controls remain launch requirements.
+Only accounts that choose a username through the API are discoverable. Use the found user ID to open a direct conversation. Authenticated discovery intentionally reveals the display name associated with a known username. Usernames are not secret. Discovery and conversation endpoints currently have no application-level rate limits; verified-email access is enforced, and general chat abuse controls remain launch requirements.
 
 Use `pnpm test:auth` to verify backend discovery and username handling; there is currently no browser discovery flow.
 

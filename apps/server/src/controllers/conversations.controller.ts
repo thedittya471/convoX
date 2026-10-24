@@ -18,6 +18,8 @@ export async function createConversation(request: Request, response: Response) {
       return response.status(401).json({ error: "Sign in to start a conversation." });
     }
 
+    if (!session.user.emailVerified) return response.status(403).json({ code: "EMAIL_NOT_VERIFIED", error: "Verify your email before using chat." });
+
     if (request.get("Origin") !== new URL(config.BETTER_AUTH_URL).origin) {
       return response.status(403).json({ error: "Invalid request origin." });
     }
@@ -52,6 +54,8 @@ export async function getConversations(request: Request, response: Response) {
     if (!session) {
       return response.status(401).json({ error: "Sign in to view conversations." });
     }
+
+    if (!session.user.emailVerified) return response.status(403).json({ code: "EMAIL_NOT_VERIFIED", error: "Verify your email before using chat." });
 
     const parsed = conversationListQuerySchema.safeParse(request.query);
     if (!parsed.success) {

@@ -1,18 +1,39 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 
-export default function Home() {
+function Account() {
+  const verification = useSearchParams().get("verification");
   const router = useRouter();
   const { data: session, isPending, error, refetch } = authClient.useSession();
+  const [sendingVerification, setSendingVerification] = useState(false);
+  const [verificationMessage, setVerificationMessage] = useState("");
+  const [verificationError, setVerificationError] = useState("");
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState("");
 
   useEffect(() => {
-    if (!isPending && !error && !session) router.replace("/login");
+    if (!isPending && !error && !session) router.replace(window.location.search.includes("verification=") ? "/login?verification=check" : "/login");
   }, [isPending, error, session, router]);
+
+  async function resendVerification() {
+    if (!session || sendingVerification) return;
+    setSendingVerification(true);
+    setVerificationMessage("");
+    setVerificationError("");
+    try {
+      const result = await authClient.sendVerificationEmail({ email: session.user.email, callbackURL: "/" });
+      if (result.error) {
+        setVerificationError(result.error.status === 429 ? "Too many requests. Wait a minute before trying again." : "Could not send the email. Please try again.");
+      } else setVerificationMessage("Verification email sent. Check your inbox and spam folder. The link expires in one hour.");
+    } catch {
+      setVerificationError("Could not reach the server. Please try again.");
+    } finally {
+      setSendingVerification(false);
+    }
+  }
 
   async function signOut() {
     setSigningOut(true);
@@ -47,9 +68,22 @@ export default function Home() {
             <h1 id="home-heading">Welcome, {session.user.name}</h1>
             <p className="muted wrap-break-word">Signed in as {session.user.email}</p>
             <div className="account-notice">
-              <h2>You’re all set.</h2>
-              <p>Your account is ready. Conversations are coming next.</p>
+              {session.user.emailVerified ? (
+                <><h2>Email verified.</h2><p>Your account is ready. Conversations are coming next.</p></>
+              ) : (
+                <>
+                  <h2>Verify your email</h2>
+                  <p>Check your inbox for a verification link. You can sign in, but you must verify your email before finding people or using chat.</p>
+                  <button className="primary-button" onClick={resendVerification} disabled={sendingVerification}>
+                    {sendingVerification ? "Sending…" : "Resend verification email"}
+                  </button>
+                  <button className="primary-button" onClick={() => void refetch()}>I’ve verified — check again</button>
+                </>
+              )}
             </div>
+            {verification === "invalid" && <p role="alert">This verification link expired or was already used. If your email is still unverified, request a new link.</p>}
+            {verificationMessage && <p role="status">{verificationMessage}</p>}
+            {verificationError && <p role="alert" className="form-error">{verificationError}</p>}
             {signOutError && <p role="alert" className="form-error">{signOutError}</p>}
             <button className="primary-button" onClick={signOut} disabled={signingOut}>
               {signingOut ? "Signing out…" : "Sign out"}
@@ -59,4 +93,8 @@ export default function Home() {
       </section>
     </main>
   );
+}
+
+export default function Home() {
+  return <Suspense fallback={<p role="status">Checking your account…</p>}><Account /></Suspense>;
 }

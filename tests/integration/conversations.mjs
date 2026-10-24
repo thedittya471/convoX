@@ -1,3 +1,4 @@
+import { verifyFixture } from "./verify-email.mjs";
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { conversationListResponseSchema, conversationResponseSchema } from "../../packages/contracts/dist/index.js";
@@ -60,6 +61,7 @@ try {
     assert.equal(response.status, 200);
     const identity = await response.json();
     actors.push({ ...identity.user, cookie: response.headers.getSetCookie().map((value) => value.split(";")[0]).join("; ") });
+    await verifyFixture(email);
   }
   const [first, second, third, fourth, outsider] = actors;
   assert.equal((await request("/api/conversations")).status, 401);

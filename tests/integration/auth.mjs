@@ -1,3 +1,6 @@
+import { spawnSync } from "node:child_process";
+import { verificationLink, verifyFixture } from "./verify-email.mjs";
+import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { pool } from "../../apps/server/dist/db/client.js";
@@ -31,6 +34,14 @@ function cookies(response) {
 }
 
 try {
+  for (const override of [{ SMTP_USER: "synthetic-user", SMTP_PASSWORD: undefined }, { SMTP_FROM: undefined }, { SMTP_HOST: "remote.example", SMTP_TLS: "local" }]) {
+    const env = { ...process.env, ...override };
+    for (const key of Object.keys(env)) if (env[key] === undefined) delete env[key];
+    const child = spawnSync(process.execPath, ["--input-type=module", "-e", 'await import("./apps/server/dist/utils/config.js")'], { env, encoding: "utf8" });
+    assert.equal(child.status, 1, "unsafe SMTP configuration must fail startup");
+    assert.match(child.stderr, /invalid_configuration/);
+    assert.ok(!child.stderr.includes("synthetic-user"), "configuration errors must not echo credentials");
+  }
   const denied = await request(servers[0], "sign-up/email", {
     body: { name: "Auth test", email, password },
     requestOrigin: "https://untrusted.example",
@@ -50,6 +61,31 @@ try {
   assert.match(signup.headers.getSetCookie().join(";"), /HttpOnly/i);
   assert.match(signup.headers.getSetCookie().join(";"), /SameSite=Lax/i);
 
+  assert.equal((await request(servers[0], "/api/users/lookup?username=someone", { cookie })).status, 403, "unverified sessions must not discover users");
+  assert.equal((await request(servers[1], "/api/conversations", { cookie })).status, 403, "unverified sessions must not list chats");
+
+  const deniedMessageId = randomUUID();
+  for (const [path, body] of [["/api/conversations", { otherUserId: "someone" }], [`/api/conversations/${deniedMessageId}/messages`, undefined], [`/api/conversations/${deniedMessageId}/messages`, { clientMessageId: randomUUID(), encryptedPayload: "synthetic" }]]) {
+    assert.equal((await request(servers[2], path, { cookie, body })).status, 403, "all chat operations must require verification");
+  }
+  const firstLink = await verificationLink(email);
+  const tokenId = createHash("sha256").update(firstLink.searchParams.get("token")).digest("hex");
+  await pool.query("UPDATE verification SET expires_at=NOW()-INTERVAL '1 second' WHERE id=$1", [tokenId]);
+  const expiredLink = await fetch(`${servers[1]}${firstLink.pathname}${firstLink.search}`, { redirect: "manual" });
+  assert.match(expiredLink.headers.get("location"), /verification=invalid/);
+  assert.equal((await request(servers[2], "/api/conversations", { cookie })).status, 403);
+  await new Promise((resolve) => setTimeout(resolve, 1100));
+  const resent = await request(servers[1], "send-verification-email", { cookie, body: { email, callbackURL: "/" } });
+  assert.equal(resent.status, 200);
+  const link = await verifyFixture(email);
+  const reused = await fetch(`${servers[0]}${link.pathname}${link.search}`, { redirect: "manual" });
+  assert.match(reused.headers.get("location"), /verification=invalid/, "used tokens cannot be replayed on another replica");
+  const checked = await request(servers[2], "get-session", { cookie });
+  assert.equal((await checked.json()).user.emailVerified, true);
+  assert.equal((await request(servers[0], "/api/conversations", { cookie })).status, 200);
+  const anonymous = await request(servers[0], "send-verification-email", { body: { email: `unknown-${randomUUID()}@example.com` }, ip: `198.26.1.${randomBytes(1)[0]}` });
+  assert.deepEqual(await anonymous.json(), { status: true });
+
   const targetSignup = await request(servers[1], "sign-up/email", {
     body: { name: "Discovery target", email: targetEmail, password, username: targetUsername.toUpperCase() },
     ip: `198.20.${randomBytes(1)[0]}.${randomBytes(1)[0]}`,
@@ -58,6 +94,19 @@ try {
   const target = await targetSignup.json();
   assert.equal(target.user.username, targetUsername, "usernames must be normalized on creation");
   const targetCookie = cookies(targetSignup);
+  assert.equal((await request(servers[0], "send-verification-email", { cookie: targetCookie, body: { email }, ip: `198.27.1.${randomBytes(1)[0]}` })).status, 400, "resend cannot target another account");
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const resend = await request(servers[attempt % servers.length], "send-verification-email", { cookie: targetCookie, body: { email: targetEmail, callbackURL: "/" }, ip: `198.28.${attempt}.${randomBytes(1)[0]}` });
+    assert.equal(resend.status, attempt < 3 ? 200 : 429, "per-account resend limits must hold across replicas and client addresses");
+  }
+  const targetLink = await verificationLink(targetEmail);
+  assert.equal(new URL(targetLink.searchParams.get("callbackURL")).origin, origin, "mail links must never contain an untrusted callback");
+  const unsafeLink = new URL(targetLink);
+  unsafeLink.searchParams.set("callbackURL", "https://untrusted.example");
+  assert.equal((await fetch(`${servers[0]}${unsafeLink.pathname}${unsafeLink.search}`, { redirect: "manual" })).status, 403, "untrusted verification redirects must be rejected without consuming the link");
+  const raced = await Promise.all(servers.slice(0, 2).map((server) => fetch(`${server}${targetLink.pathname}${targetLink.search}`, { redirect: "manual" })));
+  assert.equal(raced.filter((response) => response.headers.get("location")?.includes("verification=complete")).length, 1, "only one replica may consume a verification link");
+  assert.equal(raced.filter((response) => response.headers.get("location")?.includes("verification=invalid")).length, 1);
   const lookupPath = `/api/users/lookup?username=${targetUsername.toUpperCase()}`;
   const anonymousLookup = await request(servers[0], lookupPath);
   assert.equal(anonymousLookup.status, 401, "discovery requires a valid session");
@@ -146,6 +195,7 @@ try {
   }
   console.log("Auth integration passed: auth lifecycle, username validation/uniqueness/concurrent claims, private authenticated discovery, and shared rate limits.");
 } finally {
+  await pool.query('DELETE FROM verification WHERE value IN (SELECT id FROM "user" WHERE email = ANY($1::text[]))', [[email, targetEmail, duplicateEmail]]);
   await pool.query('DELETE FROM "user" WHERE email = ANY($1::text[])', [[email, targetEmail, duplicateEmail]]);
   await pool.end();
 }

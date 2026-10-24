@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
 import { authClient } from "@/lib/auth-client";
 
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
@@ -82,6 +82,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
               <h1 id="auth-heading">{signup ? "Create your account" : "Welcome back"}</h1>
               <p>{signup ? "A few details, and you’re ready to connect." : "Enter your email and password to access your account"}</p>
             </header>
+        <Suspense><VerificationNotice /></Suspense>
         {isPending || (session && !sessionError) ? <p role="status">{session ? "Taking you to your account…" : "Checking your session…"}</p> : sessionError ? (
           <>
             <p role="alert" className="form-error">We couldn’t check your session. Please try again.</p>
@@ -130,4 +131,9 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       </div>
     </main>
   );
+}
+
+function VerificationNotice() {
+  const verification = useSearchParams().has("verification");
+  return verification ? <p role="status">Sign in to check your email verification. If the link expired or was already used, request a new one from your account.</p> : null;
 }

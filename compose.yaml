@@ -23,6 +23,10 @@ x-server: &server
     retries: 5
 
 services:
+  mailpit:
+    image: axllent/mailpit:v1.31.6
+    profiles: [mail]
+    ports: ["127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025", "127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025"]
   redis:
     image: redis:8-bookworm
     command: [redis-server, --save, "", --appendonly, "no"]

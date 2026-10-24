@@ -2,13 +2,13 @@ import type { Server as HttpServer } from "node:http";
 import { Server } from "socket.io";
 import { createShardedAdapter } from "@socket.io/redis-adapter";
 import { fromNodeHeaders } from "better-auth/node";
-import { and, gt, inArray } from "drizzle-orm";
+import { and, eq, gt, inArray } from "drizzle-orm";
 import type { Message, RealtimeEvents } from "@convox/contracts";
 import { auth } from "./auth.js";
 import { config } from "./config.js";
 import { publisher, subscriber } from "./redis.js";
 import { db } from "../db/client.js";
-import { session } from "../db/schema/auth.schema.js";
+import { session, user } from "../db/schema/auth.schema.js";
 
 type ClusterEvents = {
   "message:dispatch": (message: Message, participants: string[], acknowledge: (error: string | null) => void) => void;
@@ -37,6 +37,8 @@ export function createRealtimeServer(server: HttpServer): RealtimeServer {
       if (!identity) {
         return next(Object.assign(new Error("Sign in to receive messages."), { data: { code: "UNAUTHENTICATED" } }));
       }
+
+      if (!identity.user.emailVerified) return next(Object.assign(new Error("Verify your email before using chat."), { data: { code: "EMAIL_NOT_VERIFIED" } }));
 
       socket.data = { userId: identity.user.id, sessionId: identity.session.id };
       next();
@@ -83,8 +85,8 @@ async function deliverLocally(io: RealtimeServer, message: Message, participants
     return;
   }
 
-  const active = await db.select({ id: session.id }).from(session)
-    .where(and(inArray(session.id, [...new Set(sockets.map((socket) => socket.data.sessionId))]), gt(session.expiresAt, new Date())));
+  const active = await db.select({ id: session.id }).from(session).innerJoin(user, eq(user.id, session.userId))
+    .where(and(inArray(session.id, [...new Set(sockets.map((socket) => socket.data.sessionId))]), gt(session.expiresAt, new Date()), eq(user.emailVerified, true)));
   const activeIds = new Set(active.map((row) => row.id));
 
   for (const socket of sockets) {

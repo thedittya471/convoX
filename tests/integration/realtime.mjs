@@ -1,3 +1,4 @@
+import { verifyFixture } from "./verify-email.mjs";
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
@@ -122,6 +123,12 @@ async function run() {
       const response = await fetch(`${servers[index]}/api/auth/sign-up/email`, { method: "POST", headers: { origin, "content-type": "application/json", "x-real-ip": `198.24.${randomBytes(1)[0]}.${randomBytes(1)[0]}` }, body: JSON.stringify({ name: `Realtime fixture ${index}`, email, password: randomBytes(24).toString("base64url") }) });
       assert.equal(response.status, 200);
       actors.push({ ...(await response.json()).user, cookie: response.headers.getSetCookie().map((value) => value.split(";")[0]).join("; ") });
+      if (index === 0) {
+        const unverified = connect(actors[0], servers[1]);
+        await assert.rejects(unverified.ready, (error) => error.data?.code === "EMAIL_NOT_VERIFIED");
+        unverified.socket.disconnect();
+      }
+      await verifyFixture(email);
     }
     const [alice, bob, outsider] = actors;
     for (const [actor, requestOrigin] of [[null, origin], [alice, "https://untrusted.example"], [alice, null]]) {

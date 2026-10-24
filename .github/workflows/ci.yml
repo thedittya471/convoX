@@ -18,11 +18,17 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - name: Create an ephemeral local auth secret
-        run: node -e 'require("node:fs").writeFileSync(".env", "BETTER_AUTH_URL=http://localhost:8080\nBETTER_AUTH_SECRET=" + require("node:crypto").randomBytes(32).toString("base64") + "\n")'
+        run: node -e 'require("node:fs").writeFileSync(".env", "SMTP_HOST=mailpit\nSMTP_PORT=1025\nSMTP_TLS=local\nSMTP_FROM=convox@example.com\nBETTER_AUTH_URL=http://localhost:8080\nBETTER_AUTH_SECRET=" + require("node:crypto").randomBytes(32).toString("base64") + "\n")'
       - run: docker compose --profile stack config --quiet
+      - run: docker compose --profile mail up -d mailpit
       - run: pnpm stack:up
       - run: docker compose exec -T server-1 pnpm --filter @convox/server db:migrate
       - run: pnpm test:smoke
+      - name: Verify SMTP outage behavior
+        run: |
+          trap 'docker compose start mailpit' EXIT
+          docker compose stop mailpit
+          docker compose exec -T server-1 node tests/integration/email-unavailable.mjs
       - run: pnpm test:auth
       - run: pnpm test:conversations
       - run: pnpm test:messages
@@ -31,4 +37,4 @@ jobs:
       - if: failure()
         run: docker compose --profile stack logs --tail=100
       - if: always()
-        run: docker compose --profile stack down
+        run: docker compose --profile stack --profile mail down

@@ -43,3 +43,9 @@ Recorded during Tasks 1–3 on 2026-10-24. This is an initial observed-error led
 ## Source-inspection gaps requiring later implementation
 
 A valid numeric history cursor beyond the conversation head currently returns empty success. Restoration also lacks a checkpoint-invalidation protocol. These are source-inspection findings, not reproduced baseline test failures. [Recovery boundaries](docs/architecture.md) specifies expected behavior and Tasks 3A–3C/9 track implementation. No runtime fix is claimed here.
+
+## Task 4: new verification socket error retried indefinitely
+
+A new client regression test emitted EMAIL_NOT_VERIFIED and observed reconnecting instead of a stopped actionable state. The cause was that only UNAUTHENTICATED stopped handshake retries. The client now stops for EMAIL_NOT_VERIFIED, retains its queue and gives email-verification guidance. The added test passed after the fix; full checks and client-sync integration also passed.
+
+During UI implementation, lint rejected synchronous state derivation from URL parameters inside effects. The UI now reads callback parameters through Next.js useSearchParams inside Suspense; no lint rule was disabled. A test initially expected an unsafe callback to be accepted; actual existing origin validation rejected it. The assertion was corrected to prove rejection without consuming the token, while valid callback requests test shared resend limits.

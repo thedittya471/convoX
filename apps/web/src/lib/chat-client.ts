@@ -68,7 +68,7 @@ export function createChatClient(options: ChatOptions) {
     options.onChange?.(getState());
   }
 
-  function requireAuth() {
+  function requireAuth(reason = "Sign in again with the same account to resume pending sends.") {
 
     unauthorized = true;
     ready = false;
@@ -76,7 +76,7 @@ export function createChatClient(options: ChatOptions) {
     socket.disconnect();
     if (retryTimer) clearTimeout(retryTimer);
     if (interval) clearInterval(interval);
-    notify("unauthenticated", "Sign in again with the same account to resume pending sends.");
+    notify("unauthenticated", reason);
   }
 
   function retryLater() {
@@ -266,6 +266,7 @@ export function createChatClient(options: ChatOptions) {
   function onConnectError(value: Error & { data?: { code?: string } }) {
 
     if (value.data?.code === "UNAUTHENTICATED") requireAuth();
+    else if (value.data?.code === "EMAIL_NOT_VERIFIED") requireAuth("Verify your email from your account, then reopen this conversation. Pending sends remain saved.");
     else onDisconnect();
   }
 

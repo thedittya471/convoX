@@ -1,3 +1,4 @@
+import { verifyFixture } from "./verify-email.mjs";
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
@@ -79,6 +80,7 @@ async function run() {
       const response = await fetch("http://server-2:4000/api/auth/sign-up/email", { method: "POST", headers: { origin, "content-type": "application/json", "x-real-ip": `198.25.${randomBytes(1)[0]}.${randomBytes(1)[0]}` }, body: JSON.stringify({ name: `Client sync fixture ${index}`, email, password: randomBytes(24).toString("base64url") }) });
       assert.equal(response.status, 200);
       actors.push({ ...(await response.json()).user, cookie: response.headers.getSetCookie().map((value) => value.split(";")[0]).join("; ") });
+      await verifyFixture(email);
     }
     const [alice, bob] = actors;
     cookieOwner = alice;

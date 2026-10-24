@@ -1,3 +1,4 @@
+import { verifyFixture } from "./verify-email.mjs";
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { spawn, execFile } from "node:child_process";
@@ -70,6 +71,7 @@ async function run() {
       const response = await request("/api/auth/sign-up/email", { body: { name: `Message fixture ${index}`, email, password: randomBytes(24).toString("base64url") }, server: servers[index] });
       assert.equal(response.status, 200);
       actors.push({ ...(await response.json()).user, cookie: response.headers.getSetCookie().map((value) => value.split(";")[0]).join("; ") });
+      await verifyFixture(email);
     }
     const [alice, bob, outsider] = actors;
     const opened = await request("/api/conversations", { actor: alice, body: { otherUserId: bob.id } });

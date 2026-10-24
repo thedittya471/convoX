@@ -16,6 +16,8 @@ export async function sendMessage(request: Request, response: Response) {
       return response.status(401).json({ error: "Sign in to send messages." });
     }
 
+    if (!session.user.emailVerified) return response.status(403).json({ code: "EMAIL_NOT_VERIFIED", error: "Verify your email before using chat." });
+
     if (request.get("X-Expected-User-Id") && request.get("X-Expected-User-Id") !== session.user.id) {
       return response.status(403).json({ error: "The signed-in account has changed." });
     }
@@ -59,6 +61,8 @@ export async function getMessages(request: Request, response: Response) {
     if (!session) {
       return response.status(401).json({ error: "Sign in to view messages." });
     }
+
+    if (!session.user.emailVerified) return response.status(403).json({ code: "EMAIL_NOT_VERIFIED", error: "Verify your email before using chat." });
 
     if (request.get("X-Expected-User-Id") && request.get("X-Expected-User-Id") !== session.user.id) {
       return response.status(403).json({ error: "The signed-in account has changed." });

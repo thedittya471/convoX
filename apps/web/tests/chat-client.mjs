@@ -246,3 +246,16 @@ test("a failed message consumer does not acknowledge a sequence it could not app
     assert.equal(setup.received.length, 1);
   } finally { await client.stop(); }
 });
+
+test("an unverified socket identity stops retries with verification guidance", async () => {
+  const setup = fixture();
+  const client = setup.client();
+  try {
+    await client.start();
+    await until(() => client.getState().status === "connected");
+    setup.socket.emit("connect_error", Object.assign(new Error("Verify email"), { data: { code: "EMAIL_NOT_VERIFIED" } }));
+    assert.equal(client.getState().status, "unauthenticated");
+    assert.match(client.getState().error, /verify your email/i);
+    await assert.rejects(() => client.send("must-not-send"));
+  } finally { await client.stop(); }
+});
