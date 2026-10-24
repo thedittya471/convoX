@@ -1,9 +1,10 @@
 import type { Server as HttpServer } from "node:http";
-import { Server } from "socket.io";
+import { Server, type Socket } from "socket.io";
 import { createShardedAdapter } from "@socket.io/redis-adapter";
 import { fromNodeHeaders } from "better-auth/node";
 import { and, eq, gt, inArray } from "drizzle-orm";
-import type { Message, RealtimeEvents } from "@convox/contracts";
+import type { Message, RealtimeEvents, ActivityCommands } from "@convox/contracts";
+import { trackPresence } from "../services/presence.service.js";
 import { auth } from "./auth.js";
 import { config } from "./config.js";
 import { publisher, subscriber } from "./redis.js";
@@ -15,7 +16,9 @@ type ClusterEvents = {
   "message:dispatch": (message: Message, participants: string[], acknowledge: (error: string | null) => void) => void;
 };
 
-type RealtimeServer = Server<Record<string, never>, RealtimeEvents, ClusterEvents, { userId: string; sessionId: string }>;
+type SocketIdentity = { userId: string; sessionId: string };
+type RealtimeServer = Server<ActivityCommands, RealtimeEvents, ClusterEvents, SocketIdentity>;
+export type RealtimeSocket = Socket<ActivityCommands, RealtimeEvents, ClusterEvents, SocketIdentity>;
 
 export function createRealtimeServer(server: HttpServer): RealtimeServer {
 
@@ -55,6 +58,7 @@ export function createRealtimeServer(server: HttpServer): RealtimeServer {
       const [current] = await db.select().from(history);
       if (!current) throw new Error("History generation is unavailable");
       await socket.join(`user:${socket.data.userId}`);
+      trackPresence(socket);
       socket.emit("realtime:ready", { instanceId: config.INSTANCE_ID, userId: socket.data.userId, generation: current.generation });
     } catch {
       socket.disconnect(true);

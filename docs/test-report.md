@@ -128,3 +128,7 @@ Tasks 14–20 were authorized with script-only verification and no browser execu
 ## Task 15: shared presence contract
 
 Added the connection-owned Redis lease decision and bounded watch/snapshot schemas. Contract tests reject arbitrary peer IDs and multi-conversation payloads, distinguish dependency loss from offline, and assert lease plus polling stays below 30 seconds. `pnpm check` passed (45 unit tests). Timelines cover two tabs, crash, reconnect-before-cleanup and Redis restart; runtime fault evidence belongs to Task 16.
+
+## Task 16: shared presence liveness
+
+`pnpm check` passed (45 unit tests). `pnpm test:presence` passed in the disposable `convox-task16` three-replica stack: outsider denial, two Bob connections across replicas, closing one tab, reconnect-before-old-cleanup, abrupt final replica kill with observed offline below 30 seconds, Redis outage → unavailable → recovered online, and session revocation without message traffic. The script restores the killed replica and Redis and deletes its synthetic accounts/conversation. No real-browser or capacity qualification was performed. Presence leases expire without a migration; removing the handlers rolls back the feature.

@@ -1,0 +1,94 @@
+import { randomUUID } from "node:crypto";
+import { and, eq, gt } from "drizzle-orm";
+import { activityTiming, activityWatchSchema, type PresenceSnapshot } from "@convox/contracts";
+import { db } from "../db/client.js";
+import { conversation } from "../db/schema/conversation.schema.js";
+import { session, user } from "../db/schema/auth.schema.js";
+import { publisher, subscriber } from "../utils/redis.js";
+import type { RealtimeSocket } from "../utils/realtime.js";
+
+const refreshLease = `
+local t = redis.call('TIME')
+local now = t[1] * 1000 + math.floor(t[2] / 1000)
+redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now)
+redis.call('ZADD', KEYS[1], now + tonumber(ARGV[2]), ARGV[1])
+redis.call('PEXPIRE', KEYS[1], ARGV[2])
+return 1`;
+const readLease = `
+local t = redis.call('TIME')
+local now = t[1] * 1000 + math.floor(t[2] / 1000)
+redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now)
+return redis.call('ZCARD', KEYS[1])`;
+const leaseKey = (userId: string) => `presence:${userId}`;
+
+export function trackPresence(socket: RealtimeSocket) {
+  const token = randomUUID();
+  const ownKey = leaseKey(socket.data.userId);
+  let watched: string | undefined;
+  let lastWatch = 0;
+  let busy = false;
+  let closed = false;
+  let previous = "";
+
+  function emit(state: PresenceSnapshot["state"]) {
+    if (!watched || closed || !socket.connected) return;
+    const value = { conversationId: watched, state };
+    const encoded = JSON.stringify(value);
+    if (encoded !== previous) socket.emit("presence:changed", value);
+    previous = encoded;
+  }
+
+  async function tick() {
+    if (busy || closed) return;
+    busy = true;
+    const selected = watched;
+    try {
+      const [active] = await db.select({ id: session.id }).from(session).innerJoin(user, eq(user.id, session.userId))
+        .where(and(eq(session.id, socket.data.sessionId), eq(session.userId, socket.data.userId), gt(session.expiresAt, new Date()), eq(user.emailVerified, true)));
+      if (closed) return;
+      if (!active) {
+        socket.emit("auth:required");
+        socket.disconnect(true);
+        return;
+      }
+      if (!publisher.isReady || !subscriber.isReady) throw new Error("Activity is unavailable");
+      await publisher.eval(refreshLease, { keys: [ownKey], arguments: [token, String(activityTiming.leaseMs)] });
+      if (!selected || selected !== watched || closed) return;
+      const [row] = await db.select().from(conversation).where(eq(conversation.id, selected));
+      if (selected !== watched || closed) return;
+      if (!row || ![row.directUserLowId, row.directUserHighId].includes(socket.data.userId)) {
+        emit("unavailable");
+        watched = undefined;
+        return;
+      }
+      const peerId = row.directUserLowId === socket.data.userId ? row.directUserHighId : row.directUserLowId;
+      const count = await publisher.eval(readLease, { keys: [leaseKey(peerId)], arguments: [] });
+      if (selected === watched && !closed) emit(Number(count) > 0 ? "online" : "offline");
+    } catch {
+      if (selected === watched) emit("unavailable");
+    } finally {
+      busy = false;
+      if (!closed && selected !== watched) void tick();
+      // Disconnect can race a pending refresh: remove this token once more after it finishes.
+      if (closed && publisher.isReady) void publisher.zRem(ownKey, token).catch(() => {});
+    }
+  }
+
+  socket.on("activity:watch", (value) => {
+    if (Date.now() - lastWatch < 1000) return;
+    lastWatch = Date.now();
+    const parsed = activityWatchSchema.safeParse(value);
+    watched = parsed.success ? parsed.data.conversationId : undefined;
+    previous = "";
+    emit("unavailable");
+    void tick();
+  });
+  const timer = setInterval(() => void tick(), activityTiming.pollMs);
+  timer.unref();
+  socket.once("disconnect", () => {
+    closed = true;
+    clearInterval(timer);
+    if (publisher.isReady) void publisher.zRem(ownKey, token).catch(() => {});
+  });
+  void tick();
+}

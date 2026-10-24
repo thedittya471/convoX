@@ -23,7 +23,8 @@
     "test:realtime": "node tests/integration/realtime.mjs",
     "test:client-sync": "node tests/integration/client-sync.mjs",
     "db:generate": "pnpm --filter @convox/server db:generate",
-    "db:migrate": "pnpm --filter @convox/server db:migrate"
+    "db:migrate": "pnpm --filter @convox/server db:migrate",
+    "test:presence": "node tests/integration/activity.mjs"
   },
   "keywords": [],
   "author": "",
