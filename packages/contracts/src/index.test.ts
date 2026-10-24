@@ -77,3 +77,15 @@ test("history pages and recovery errors carry explicit boundaries", () => {
   for (const code of ["CURSOR_AHEAD", "HISTORY_UNAVAILABLE", "HISTORY_RESET"]) assert.equal(messageHistoryErrorSchema.safeParse({ code, error: "Rebuild history." }).success, true);
   assert.equal(messageHistoryErrorSchema.safeParse({ code: "UNKNOWN", error: "Retry" }).success, false);
 });
+
+
+test("presence subscriptions are bounded and snapshots distinguish unavailable", async () => {
+  const { activityWatchSchema, presenceSnapshotSchema, activityTiming } = await import("./index.js");
+  const conversationId = "00000000-0000-4000-8000-000000000001";
+  assert.equal(activityWatchSchema.safeParse({ conversationId }).success, true);
+  for (const value of [{ conversationId: "bad" }, { conversationId, userId: "victim" }, { conversationIds: [conversationId] }]) {
+    assert.equal(activityWatchSchema.safeParse(value).success, false);
+  }
+  for (const state of ["online", "offline", "unavailable"]) assert.equal(presenceSnapshotSchema.safeParse({ conversationId, state }).success, true);
+  assert.ok(activityTiming.leaseMs + activityTiming.pollMs < 30000);
+});

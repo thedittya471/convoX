@@ -124,3 +124,7 @@ Real multi-tab browser storage events, focus/visibility behavior, account switch
 ## Task 14: browser qualification deferred by owner instruction
 
 Tasks 14–20 were authorized with script-only verification and no browser execution. [The reproducible scenario checklist](browser-verification.md) records the required real-cookie/IndexedDB, narrow-layout, keyboard, offline and session cases. No browser runner or CI job was added without an opportunity to exercise it. Task 14 remains pending; Node script results are not browser evidence. Tasks 15–20 do not depend on Task 14.
+
+## Task 15: shared presence contract
+
+Added the connection-owned Redis lease decision and bounded watch/snapshot schemas. Contract tests reject arbitrary peer IDs and multi-conversation payloads, distinguish dependency loss from offline, and assert lease plus polling stays below 30 seconds. `pnpm check` passed (45 unit tests). Timelines cover two tabs, crash, reconnect-before-cleanup and Redis restart; runtime fault evidence belongs to Task 16.
