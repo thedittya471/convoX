@@ -54,4 +54,6 @@ Server integration tests in `tests/integration/` exercise real PostgreSQL, Redis
 
 Do not edit assertions to accommodate a refactor. A changed public field, status, callback, retry order or data lifecycle needs its own behavior change and verification.
 
-History restoration uses the singleton `history.generation`, migration 0006 and the fenced operator procedure in [operations.md](operations.md). Checkpoints and pending queues retain their original generation. Explicit reset/unavailable responses stop synchronization and preserve pending IDs/content; history reload does not automatically resend them.
+History restoration uses the singleton `history.generation`, migration 0006 and the fenced operator procedure in [operations.md](operations.md). Checkpoints and pending queues retain their original generation. Explicit reset/unavailable responses stop synchronization and preserve pending IDs/content; history reload resumes matching-generation sends but never automatically resends an older or unknown-generation queue.
+
+The composer in `chat.tsx` calls `client.send`, guards duplicate submission, keeps text on validation/storage failure, and clears it after the local transaction commits. Pending rows disappear from the visible queue when a matching canonical sender/client ID is displayed. The client checks the canonical JSON request against the existing 16 KB HTTP budget before persistence, in addition to shared Unicode character validation. No plaintext-to-ciphertext conversion is performed.

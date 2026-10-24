@@ -459,3 +459,6 @@ input:disabled {
 .message-history li { padding-block: .75rem; border-bottom: 1px solid var(--border); }
 .message-sender { font-size: .8rem; }
 .message-content { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.message-composer textarea { width: 100%; min-height: 6rem; padding: .75rem; border: 1px solid var(--border); border-radius: .375rem; font: inherit; resize: vertical; }
+.pending-messages { list-style: none; padding: 0; }

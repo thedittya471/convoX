@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomUUID } from "node:crypto";
-import { loadHistory, mergeHistory, HistoryError } from "../src/lib/message-history.ts";
+import { loadHistory, mergeHistory, unconfirmedMessages, HistoryError } from "../src/lib/message-history.ts";
 const conversationId = randomUUID();
 const generation = randomUUID();
 const message = (sequence) => ({ id: randomUUID(), conversationId, senderId: "user", clientMessageId: randomUUID(), sequence: String(sequence), encryptedPayload: `<script>${sequence}</script>`, createdAt: "2026-01-01T00:00:00.123Z" });
@@ -39,4 +39,14 @@ test("history windows deduplicate overlaps and stay bounded in both directions",
   const older = mergeHistory(recent, rows.slice(0, 60), "older");
   assert.equal(older.length, 200);
   assert.deepEqual(older.map((row) => row.sequence), rows.slice(0, 200).map((row) => row.sequence));
+});
+
+
+test("canonical messages reconcile pending rows by sender and client ID", () => {
+  const saved = message(1);
+  const pending = { queueId: 1, userId: saved.senderId, conversationId, clientMessageId: saved.clientMessageId, encryptedPayload: saved.encryptedPayload, error: null };
+  assert.deepEqual(unconfirmedMessages([saved], [pending]), []);
+  assert.equal(unconfirmedMessages([{ ...saved, senderId: "other" }], [pending]).length, 1);
+  assert.equal(unconfirmedMessages([], [pending]).length, 1);
+  assert.equal(mergeHistory([saved], [saved], "live").length, 1);
 });

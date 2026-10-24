@@ -355,3 +355,35 @@ test("a first send cannot create an unversioned queue before the initial handsha
     assert.equal(client.getState().pending.length, 0);
   } finally { await client.stop(); }
 });
+
+
+test("local persistence failure creates no pending entry or network send", async () => {
+  const setup = fixture();
+  const client = setup.client();
+  const put = IDBObjectStore.prototype.put;
+  try {
+    await client.start();
+    await until(() => client.getState().status === "connected");
+    IDBObjectStore.prototype.put = function () { throw new DOMException("Device storage is full", "QuotaExceededError"); };
+    await assert.rejects(client.send("draft must remain"), { name: "QuotaExceededError" });
+    assert.equal(client.getState().pending.length, 0);
+    assert.equal(setup.attempts.length, 0);
+  } finally { IDBObjectStore.prototype.put = put; await client.stop(); }
+});
+
+test("message payload validation preserves Unicode and enforces character and request byte limits", async () => {
+  const setup = fixture();
+  setup.offline(true);
+  const client = setup.client();
+  try {
+    await client.start();
+    const text = "😀".repeat(4000);
+    await client.send(text);
+    assert.equal(client.getState().pending[0].encryptedPayload, text);
+    await assert.rejects(client.send("a".repeat(8193)));
+    await assert.rejects(client.send("😀".repeat(8192)), RangeError);
+    await assert.rejects(client.send("\u0001".repeat(8192)), RangeError);
+    await assert.rejects(client.send(""));
+    assert.equal(client.getState().pending.length, 1);
+  } finally { await client.stop(); }
+});

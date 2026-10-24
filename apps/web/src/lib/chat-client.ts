@@ -329,10 +329,14 @@ export function createChatClient(options: ChatOptions) {
 
     if (!starting || stopped || unauthorized || halted) throw new Error("Start an authenticated client before sending.");
     await starting;
+    if (stopped || unauthorized || halted) throw new Error("This conversation is no longer active.");
     if (!generation) throw new Error("Wait for history to synchronize before sending the first message.");
     const envelope = createMessageSchema.parse({ clientMessageId: crypto.randomUUID(), encryptedPayload });
-    await savePendingMessage({ ...envelope, userId, conversationId, error: null, ...(generation ? { generation } : {}) });
-    pending = await loadPendingMessages(userId, conversationId);
+    if (new TextEncoder().encode(JSON.stringify(envelope)).byteLength > 16384) {
+      throw new RangeError("This message is too large to send. Shorten it and try again.");
+    }
+    const saved = await savePendingMessage({ ...envelope, userId, conversationId, error: null, generation });
+    pending = [...pending.filter((entry) => entry.queueId !== saved.queueId), saved];
     notify();
     void flushPending();
     return envelope.clientMessageId;

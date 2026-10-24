@@ -1,5 +1,12 @@
 import { conversationSchema, messageHistoryPageSchema, type Message } from "@convox/contracts";
 
+import type { PendingMessage } from "./message-outbox";
+
+export function unconfirmedMessages(messages: Message[], pending: PendingMessage[]) {
+  return pending.filter((entry) => !messages.some((message) =>
+    message.senderId === entry.userId && message.clientMessageId === entry.clientMessageId));
+}
+
 export class HistoryError extends Error {
   constructor(message: string, public status: number) { super(message); }
 }
