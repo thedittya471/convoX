@@ -39,7 +39,8 @@
     "test:backup": "node tests/operations/backup.mjs",
     "test:outages": "node tests/integration/dependency-outage.mjs",
     "test:load": "node --test tests/load/accounting.test.mjs",
-    "load": "node tests/load/run.mjs"
+    "load": "node tests/load/run.mjs",
+    "test:security": "node tests/security/compressed-body.mjs"
   },
   "keywords": [],
   "author": "",
