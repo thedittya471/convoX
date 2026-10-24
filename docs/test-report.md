@@ -182,3 +182,22 @@ Owner approved separate HTTP (database + non-draining) and realtime (also live R
 ## Task 25B: Docker-host deployment preparation
 
 Owner selected a Docker-host template with staging details deferred. Final `pnpm check` passed (52 units), `pnpm test:production` passed synthetic startup guards, immutable-pin rejection, private secret permissions, matching credential files, current TLS key/hostname validation, private Compose port/network rendering and isolated NGINX TLS syntax checking. Final `pnpm test:auth` (including recovery) and `pnpm test:sockets` passed against the disposable stack after configurable proxy-trust changes. Temporary certificate/secret fixtures were removed by the script. No public deployment, real hostname/certificate chain, real provider SMTP, image pull/version attestation or runtime secret-file ownership was exercised. Task 25's template/preparation is complete; its staging verification remains open. See deployment.md for prerequisites, budgets, rotations and rollback.
+
+## Task 26: isolated encrypted restoration (2026-10-24)
+
+`test:backup` passed against the disposable `convox-release` PostgreSQL 17
+project with fenced publishers and a separate restored database. A 32-byte
+private test key encrypted a consistent custom-format dump; restored identity,
+credential login/session, participant isolation, sequence/counter, stable retry
+identity and pending outbox application replay passed. Nonempty targets,
+duplicate keys and tampered ciphertext were rejected. The final small-fixture
+restore took 208 ms; the entire rehearsal took 1,947 ms. This measures fixture
+recovery only, not production RTO. Cutoff was 2026-10-24T11:05:02.669Z. Source data
+and the restored target were independently removed only within the disposable
+project. Key and temporary archives were deleted by the test.
+
+The daily schedule/seven-day retention/RPO <=24h and RTO <=4h are operational
+targets. Hosting, off-host copies, scheduler/alert installation and production-size
+rehearsal remain open with Task 25 staging. No production backup job was installed.
+Run with `BACKUP_TEST_CONTAINER` and `BACKUP_TEST_APP_CONTAINER` naming disposable
+containers; the app helper must be idle (no publisher) on the same private network.

@@ -69,3 +69,43 @@ SIGTERM/SIGINT immediately marks draining, rejects new work and disconnects loca
 ### Production Docker host
 
 See [deployment preparation](deployment.md) for the standalone production Compose file, TLS, private networks, file-secret ownership, pinned image/runtime inputs, connection budgets, rotations and the uncompleted staging gate. Development Compose is not a production overlay. `DEPLOYMENT_MODE=production` enforces HTTPS, independent secrets, authenticated dependencies, SMTP and explicit proxy CIDRs on startup.
+
+### Encrypted database backups
+
+Run `node scripts/database-backup.mjs backup CONTAINER DATABASE DIRECTORY KEY_FILE`
+from a controlled Docker operator account. The container must have PostgreSQL 17
+client tools and local operator authentication. Set `PGUSER` if it differs from
+`convox`; no password is accepted on the command line. Create a dedicated 0700
+backup directory and a separate 0600 file containing 32 cryptographically random
+bytes. Protect that key independently from the backups; losing it loses recovery.
+The script streams a transactionally consistent custom-format dump through
+AES-256-GCM, writes privately, and publishes the file only after successful dump
+and encryption. IV/tag are appended; partial files are never restoration inputs.
+
+Schedule this command daily using the host's existing scheduler. Alert on failed
+runs and when the last successful backup exceeds 24 hours. Only completed
+`convox-*.dump.gcm` files older than seven days in that directory are removed,
+after a successful backup. Store the encrypted archives off the database host;
+replication, scheduler installation and alert routing depend on the hosting setup.
+A daily schedule targets RPO <=24 hours only while successful backups continue.
+The printed cutoff is a conservative timestamp before the dump snapshot, not a
+promise to recover later acknowledgements. Track duration/size and rehearse at
+production data volume before claiming the four-hour RTO.
+
+Restore with `node scripts/database-backup.mjs restore CONTAINER EMPTY_DATABASE
+ARCHIVE KEY_FILE`. First create a separate empty database and fence traffic as
+specified above. The archive is authenticated into a private temporary directory
+before any database writes. Restore runs as one transaction, preserves constraint
+and migration metadata, and rotates the history generation. The temporary plain
+dump is removed on ordinary exit/failure; use encrypted operator scratch storage
+and clean abandoned `convox-restore-*` directories after host/process crashes.
+A failed post-restore generation rotation leaves an isolated target: never route
+traffic until the generation and application checks succeed.
+
+Apply only schema-compatible reviewed migrations, then verify auth, participant
+access, retry uniqueness, sequence/counter agreement and outbox replay. Keep the
+original volume and compatible application images for rollback; an application
+rollback does not reverse database migrations. Retired Matrix configuration is
+not part of the active PostgreSQL/Redis system: archive any retained Matrix
+volumes/secrets separately and do not delete them or OAuth/account tables during
+cleanup. The script never removes database volumes or modifies the source.
