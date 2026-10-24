@@ -36,7 +36,8 @@
     "test:limits": "docker compose exec -T server-2 node tests/integration/rate-limits.mjs",
     "db:backup": "node scripts/database-backup.mjs backup",
     "db:restore": "node scripts/database-backup.mjs restore",
-    "test:backup": "node tests/operations/backup.mjs"
+    "test:backup": "node tests/operations/backup.mjs",
+    "test:outages": "node tests/integration/dependency-outage.mjs"
   },
   "keywords": [],
   "author": "",

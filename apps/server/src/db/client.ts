@@ -15,6 +15,13 @@ export const pool = new Pool({
   idleTimeoutMillis: 30000,
 });
 
+// Checked-out clients can emit connection errors outside an active query.
+pool.on("connect", (client) => {
+  client.on("error", () => {
+    console.error(JSON.stringify({ event: "database_connection_error", instanceId: config.INSTANCE_ID }));
+  });
+});
+
 pool.on("error", () => {
   metrics.databaseErrors++;
   console.error(JSON.stringify({ event: "database_pool_error", instanceId: config.INSTANCE_ID }));

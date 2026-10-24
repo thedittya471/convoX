@@ -201,3 +201,28 @@ targets. Hosting, off-host copies, scheduler/alert installation and production-s
 rehearsal remain open with Task 25 staging. No production backup job was installed.
 Run with `BACKUP_TEST_CONTAINER` and `BACKUP_TEST_APP_CONTAINER` naming disposable
 containers; the app helper must be idle (no publisher) on the same private network.
+
+## Task 27: dependency outages (2026-10-24)
+
+The new `test:outages` script passed on the disposable three-replica stack.
+Twelve concurrent sends during PostgreSQL shutdown returned 503 within the
+8-second test bound; none created the rejected logical message. A committed
+send whose response body was deliberately discarded reconciled on another
+replica to one stored row. Redis shutdown made realtime unready while HTTP
+readiness, history and durable acceptance stayed available; the unpublished
+outbox item drained after Redis returned, and a retry retained its identity.
+The worker/controller have bounded request/control deadlines, restore dependencies
+on exit and restrict the host runner to explicit disposable project names.
+Existing activity fault suites qualify connection ownership and Redis recovery.
+These are finite fault probes, not a sustained overload/resource qualification.
+
+Presence and typing fault scripts both passed sequentially, including crash
+expiry, multi-tab ownership, Redis invalidation/recovery, session revocation and
+absence of durable typing history. No browser was opened.
+
+A repeated database fault exposed an unhandled `pg` Client `error` event while a
+connection was checked out. The pool now attaches a redacted connection-error
+listener when each client connects; query/transaction failures still reject and
+readiness still fails closed. The corrected outage regression verifies both
+remote replicas become ready again without restarting them. `pnpm check` and the
+final outage run passed. This closes the observed process-exit race.
