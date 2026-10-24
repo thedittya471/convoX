@@ -77,6 +77,17 @@ async function run() {
   const emails = Array.from({ length: 3 }, (_value, index) => `realtime-test-${suffix}-${index}@example.com`);
   const actors = [];
   const sockets = [];
+  async function metricSnapshots() {
+    if (!process.env.METRICS_TOKEN) return null;
+    return Promise.all(servers.map(async (server) => {
+      const response = await fetch(`${server}/internal/metrics`, { headers: { authorization: `Bearer ${process.env.METRICS_TOKEN}` } });
+      assert.equal(response.status, 200);
+      const text = await response.text();
+      assert.doesNotMatch(text, /user_id|message_id|conversation_id|session_token|encryptedPayload/);
+      return Object.fromEntries([...text.matchAll(/^convox_(\w+)\{[^}]*\} (\d+(?:\.\d+)?)$/gm)].map((match) => [match[1], Number(match[2])]));
+    }));
+  }
+  const baselineMetrics = await metricSnapshots();
 
   async function until(check, description, timeout = 10000) {
     const deadline = Date.now() + timeout;
@@ -161,6 +172,16 @@ async function run() {
     const retry = await request(path, alice, body, servers[2]);
     assert.equal(retry.status, 200);
     await sleep(300);
+    if (baselineMetrics) {
+      const current = await metricSnapshots();
+      assert.equal(current.reduce((sum, row, index) => sum + row.durable_accepts_total - baselineMetrics[index].durable_accepts_total, 0), 1, "idempotent retry must not count as a new durable accept");
+      assert.equal(current[0].durable_accepts_total - baselineMetrics[0].durable_accepts_total, 1);
+      assert.equal(current.reduce((sum, row) => sum + row.active_sockets, 0), 5);
+      assert.ok(current.reduce((sum, row) => sum + row.routing_seconds_count, 0) >= 1);
+      assert.ok(current.every((row) => row.outbox_collection_available === 1));
+      assert.equal((await fetch(`${servers[0]}/internal/metrics`)).status, 404);
+      assert.equal((await fetch("http://nginx/internal/metrics", { headers: { authorization: `Bearer ${process.env.METRICS_TOKEN}` } })).status, 404);
+    }
     assert.equal(second.socket.received.filter((item) => item.id === saved.id).length, 1);
 
     await pool.query("UPDATE message_outbox SET published_at = NULL WHERE message_id = $1", [saved.id]);

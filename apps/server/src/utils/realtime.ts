@@ -5,6 +5,7 @@ import { fromNodeHeaders } from "better-auth/node";
 import { and, eq, gt, inArray } from "drizzle-orm";
 import type { Message, RealtimeEvents, ActivityCommands } from "@convox/contracts";
 import { trackPresence } from "../services/presence.service.js";
+import { metrics, observeRouting } from "./metrics.js";
 import { claimQuota } from "./rate-limit.js";
 import { reserveConnection, boundOutbound, socketIp } from "./socket-limits.js";
 import { auth } from "./auth.js";
@@ -61,6 +62,8 @@ export function createRealtimeServer(server: HttpServer): RealtimeServer {
 
   io.on("connection", async (socket) => {
 
+    metrics.activeSockets++;
+    socket.once("disconnect", () => { metrics.activeSockets--; });
     boundOutbound(socket);
     let eventWindow = Date.now(), events = 0;
     socket.use((_packet, next) => {
@@ -128,6 +131,9 @@ async function deliverLocally(io: RealtimeServer, message: Message, participants
 
 export async function publishMessage(io: RealtimeServer, message: Message, participants: string[]) {
 
+  const started = performance.now();
+  try {
+
   if (!publisher.isReady || !subscriber.isReady) {
     throw new Error("Realtime routing is unavailable");
   }
@@ -150,4 +156,5 @@ export async function publishMessage(io: RealtimeServer, message: Message, parti
   });
 
   await deliverLocally(io, message, participants);
+  } finally { observeRouting((performance.now() - started) / 1000); }
 }

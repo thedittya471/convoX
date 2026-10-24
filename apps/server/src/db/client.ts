@@ -1,3 +1,4 @@
+import { metrics } from "../utils/metrics.js";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { config } from "../utils/config.js";
@@ -13,7 +14,7 @@ export const pool = new Pool({
   idleTimeoutMillis: 30000,
 });
 
-pool.on("error", () => console.error(JSON.stringify({ event: "database_pool_error" })));
+pool.on("error", () => { metrics.databaseErrors++; console.error(JSON.stringify({ event: "database_pool_error", instanceId: config.INSTANCE_ID })); });
 
 export const db = drizzle(pool, {
   schema: {

@@ -1,3 +1,4 @@
+import { metrics } from "./metrics.js";
 import { createHash, randomUUID } from "node:crypto";
 import type { Request, Response, NextFunction } from "express";
 import { pool } from "../db/client.js";
@@ -34,6 +35,7 @@ export async function enforceChatLimit(response: Response, scope: string, identi
     if (quota.allowed) return true;
     response.set("Retry-After", String(quota.retryAfter)).status(429).json({ error: "Too many requests. Retry after the indicated delay.", retryAfter: quota.retryAfter });
   } catch {
+    metrics.databaseErrors++;
     console.error(JSON.stringify({ event: "chat_quota_unavailable" }));
     response.set("Retry-After", "5").status(503).json({ error: "Request limits are temporarily unavailable. Retry shortly." });
   }

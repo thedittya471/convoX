@@ -1,3 +1,4 @@
+import { metrics } from "../utils/metrics.js";
 import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, gt, lt, lte, or } from "drizzle-orm";
 import type { CreateMessage, Message, MessageListQuery } from "@convox/contracts";
@@ -13,7 +14,7 @@ export function serializeMessage(row: typeof message.$inferSelect): Message {
 
 export async function createMessage(userId: string, conversationId: string, input: CreateMessage, expectedGeneration?: string) {
 
-  return db.transaction(async (transaction) => {
+  const result = await db.transaction(async (transaction) => {
 
     const [chat] = await transaction.select()
       .from(conversation)
@@ -59,6 +60,8 @@ export async function createMessage(userId: string, conversationId: string, inpu
 
     return { conflict: false as const, created: true, message: serializeMessage(inserted) };
   });
+  if (result && "created" in result && result.created) metrics.accepted++;
+  return result;
 }
 
 export async function listMessages(userId: string, conversationId: string, query: MessageListQuery) {

@@ -1,0 +1,18 @@
+import assert from "node:assert/strict";
+import { metricsAuthorized, metricsText, observeRouting, metrics } from "../../apps/server/dist/utils/metrics.js";
+import { config } from "../../apps/server/dist/utils/config.js";
+assert.ok(config.METRICS_TOKEN, "set a separate metrics token in the disposable test environment");
+assert.equal(metricsAuthorized(), false);
+assert.equal(metricsAuthorized("Bearer wrong"), false);
+assert.equal(metricsAuthorized(`Bearer ${config.METRICS_TOKEN}`), true);
+observeRouting(0.02); observeRouting(0.2);
+metrics.publishErrors++;
+const text = metricsText(3, 12, true);
+assert.match(text, /convox_routing_seconds_count\{[^}]+\} 2/);
+assert.match(text, /convox_routing_seconds_bucket\{[^}]+le="0.025"\} 1/);
+assert.match(text, /convox_routing_seconds_bucket\{[^}]+le="\+Inf"\} 2/);
+assert.match(text, /convox_publish_errors_total\{[^}]+\} 1/);
+assert.match(text, /convox_outbox_pending\{[^}]+\} 3/);
+assert.match(metricsText(NaN, NaN, false), /convox_outbox_collection_available\{[^}]+\} 0/);
+assert.doesNotMatch(text, new RegExp(config.METRICS_TOKEN));
+console.log("Metrics self-check passed: authorization, bounded labels, cumulative histogram, backlog, failure availability and token redaction.");

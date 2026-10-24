@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const configSchema = z.object({
+  METRICS_TOKEN: z.string().min(32).optional(),
   SOCKET_USER_LIMIT: z.coerce.number().int().min(1).max(10000).default(10),
   SOCKET_IP_LIMIT: z.coerce.number().int().min(1).max(100000).default(100),
   SOCKET_OUTBOUND_BYTES: z.coerce.number().int().min(16384).max(16777216).default(262144),
