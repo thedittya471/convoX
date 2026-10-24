@@ -1,7 +1,6 @@
 import type { Request, Response } from "express";
-import { fromNodeHeaders } from "better-auth/node";
 import { createMessageSchema, messageListQuerySchema, conversationSchema } from "@convox/contracts";
-import { auth } from "../utils/auth.js";
+import { getVerifiedSession } from "../utils/verified-session.js";
 import { config } from "../utils/config.js";
 import { createMessage, listMessages } from "../services/messages.service.js";
 
@@ -10,13 +9,8 @@ export async function sendMessage(request: Request, response: Response) {
   response.set("Cache-Control", "no-store");
 
   try {
-    const session = await auth.api.getSession({ headers: fromNodeHeaders(request.headers) });
-
-    if (!session) {
-      return response.status(401).json({ error: "Sign in to send messages." });
-    }
-
-    if (!session.user.emailVerified) return response.status(403).json({ code: "EMAIL_NOT_VERIFIED", error: "Verify your email before using chat." });
+    const session = await getVerifiedSession(request, response, "Sign in to send messages.");
+    if (!session) return;
 
     if (request.get("X-Expected-User-Id") && request.get("X-Expected-User-Id") !== session.user.id) {
       return response.status(403).json({ error: "The signed-in account has changed." });
@@ -56,13 +50,8 @@ export async function getMessages(request: Request, response: Response) {
   response.set("Cache-Control", "no-store");
 
   try {
-    const session = await auth.api.getSession({ headers: fromNodeHeaders(request.headers) });
-
-    if (!session) {
-      return response.status(401).json({ error: "Sign in to view messages." });
-    }
-
-    if (!session.user.emailVerified) return response.status(403).json({ code: "EMAIL_NOT_VERIFIED", error: "Verify your email before using chat." });
+    const session = await getVerifiedSession(request, response, "Sign in to view messages.");
+    if (!session) return;
 
     if (request.get("X-Expected-User-Id") && request.get("X-Expected-User-Id") !== session.user.id) {
       return response.status(403).json({ error: "The signed-in account has changed." });

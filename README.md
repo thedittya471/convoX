@@ -1,5 +1,7 @@
 # convoX
 
+For file responsibilities, request flow and safe change points, start with the [codebase guide](docs/codebase.md).
+
 Real-time chat built around conversation continuity: three identical application instances behind a load balancer, behaving as one service.
 
 convoX focuses on reliable delivery across instances, shared presence and typing, and recovering missed messages after a disconnect or server restart.

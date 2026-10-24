@@ -41,13 +41,15 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         ? await authClient.signUp.email({ name, email, password })
         : await authClient.signIn.email({ email, password });
       if (result.error) {
-        setError(result.error.status === 429
-          ? "Too many attempts. Please wait a minute and try again."
-          : result.error.status >= 500
-            ? "The server is temporarily unavailable. Please try again."
-          : signup
-            ? "Could not create your account. If you already have an account, sign in instead."
-            : "Could not sign in. Check your email and password and try again.");
+        if (result.error.status === 429) {
+          setError("Too many attempts. Please wait a minute and try again.");
+        } else if (result.error.status >= 500) {
+          setError("The server is temporarily unavailable. Please try again.");
+        } else if (signup) {
+          setError("Could not create your account. If you already have an account, sign in instead.");
+        } else {
+          setError("Could not sign in. Check your email and password and try again.");
+        }
         return;
       }
       form.reset();
@@ -58,6 +60,9 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       setSubmitting(false);
     }
   }
+
+  const submitLabel = signup ? "Create account" : "Sign in";
+  const submittingLabel = signup ? "Creating account…" : "Signing in…";
 
   return (
     <main className="auth-screen">
@@ -82,51 +87,51 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
               <h1 id="auth-heading">{signup ? "Create your account" : "Welcome back"}</h1>
               <p>{signup ? "A few details, and you’re ready to connect." : "Enter your email and password to access your account"}</p>
             </header>
-        <Suspense><VerificationNotice /></Suspense>
-        {isPending || (session && !sessionError) ? <p role="status">{session ? "Taking you to your account…" : "Checking your session…"}</p> : sessionError ? (
-          <>
-            <p role="alert" className="form-error">We couldn’t check your session. Please try again.</p>
-            <button className="primary-button" onClick={() => void refetch()}>Try again</button>
-          </>
-        ) : (
-          <form onSubmit={submit} aria-busy={submitting}>
-            <fieldset disabled={submitting}>
-              {signup && (
-                <div className="form-field">
-                  <label htmlFor="name">Name</label>
-                  <input id="name" name="name" autoComplete="name" placeholder="Enter your name" required />
-                </div>
-              )}
-              <div className="form-field">
-                <label htmlFor="email">Email</label>
-                <input id="email" name="email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} placeholder="Enter your email" required />
-              </div>
-              <div className="form-field">
-                <label htmlFor="password">Password</label>
-                <div className="password-field">
-                  <input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete={signup ? "new-password" : "current-password"} minLength={signup ? 12 : undefined} maxLength={128} aria-describedby={signup ? "password-hint" : undefined} placeholder={signup ? "Create a password" : "Enter your password"} required />
-                  <button className="password-toggle" type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword}>
-                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" stroke="currentColor" strokeWidth="1.5" />
-                      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5" />
-                      {showPassword && <path d="m3 3 18 18" stroke="currentColor" strokeWidth="1.5" />}
-                    </svg>
+            <Suspense><VerificationNotice /></Suspense>
+            {isPending || (session && !sessionError) ? <p role="status">{session ? "Taking you to your account…" : "Checking your session…"}</p> : sessionError ? (
+              <>
+                <p role="alert" className="form-error">We couldn’t check your session. Please try again.</p>
+                <button className="primary-button" onClick={() => void refetch()}>Try again</button>
+              </>
+            ) : (
+              <form onSubmit={submit} aria-busy={submitting}>
+                <fieldset disabled={submitting}>
+                  {signup && (
+                    <div className="form-field">
+                      <label htmlFor="name">Name</label>
+                      <input id="name" name="name" autoComplete="name" placeholder="Enter your name" required />
+                    </div>
+                  )}
+                  <div className="form-field">
+                    <label htmlFor="email">Email</label>
+                    <input id="email" name="email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} placeholder="Enter your email" required />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="password">Password</label>
+                    <div className="password-field">
+                      <input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete={signup ? "new-password" : "current-password"} minLength={signup ? 12 : undefined} maxLength={128} aria-describedby={signup ? "password-hint" : undefined} placeholder={signup ? "Create a password" : "Enter your password"} required />
+                      <button className="password-toggle" type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword}>
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" stroke="currentColor" strokeWidth="1.5" />
+                          <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5" />
+                          {showPassword && <path d="m3 3 18 18" stroke="currentColor" strokeWidth="1.5" />}
+                        </svg>
+                      </button>
+                    </div>
+                    {signup && <p id="password-hint" className="field-hint">Use 12–128 characters. A passphrase works well.</p>}
+                  </div>
+                  {error && <p ref={errorRef} tabIndex={-1} role="alert" className="form-error">{error}</p>}
+                  <button className="primary-button" type="submit" disabled={submitting}>
+                    {submitting ? submittingLabel : submitLabel}
                   </button>
-                </div>
-                {signup && <p id="password-hint" className="field-hint">Use 12–128 characters. A passphrase works well.</p>}
-              </div>
-              {error && <p ref={errorRef} tabIndex={-1} role="alert" className="form-error">{error}</p>}
-              <button className="primary-button" type="submit" disabled={submitting}>
-                {submitting ? (signup ? "Creating account…" : "Signing in…") : (signup ? "Create account" : "Sign in")}
-              </button>
-            </fieldset>
-          </form>
-        )}
+                </fieldset>
+              </form>
+            )}
           </div>
-        <p className="auth-footer">
-          {signup ? "Already have an account? " : "Don’t have an account? "}
-          <Link href={signup ? "/login" : "/signup"}>{signup ? "Sign in" : "Create an account"}</Link>
-        </p>
+          <p className="auth-footer">
+            {signup ? "Already have an account? " : "Don’t have an account? "}
+            <Link href={signup ? "/login" : "/signup"}>{signup ? "Sign in" : "Create an account"}</Link>
+          </p>
         </section>
       </div>
     </main>
