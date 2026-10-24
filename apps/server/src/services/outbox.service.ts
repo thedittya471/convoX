@@ -29,7 +29,11 @@ export async function publishNextMessage(publish: PublishMessage) {
 
     metrics.publishAttempts++;
     try { await publish(serializeMessage(pending.message), [pending.conversation.directUserLowId, pending.conversation.directUserHighId]); }
-    catch (error) { metrics.publishErrors++; throw error; }
+    catch (error) {
+      metrics.publishErrors++;
+      console.error(JSON.stringify({ event: "outbox_dispatch_failed", instanceId: config.INSTANCE_ID, messageId: pending.message.id }));
+      throw error;
+    }
     await transaction.update(messageOutbox).set({ publishedAt: new Date() }).where(eq(messageOutbox.messageId, pending.message.id));
 
     return true;

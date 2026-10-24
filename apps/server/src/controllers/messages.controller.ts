@@ -45,7 +45,7 @@ export async function sendMessage(request: Request, response: Response) {
     return response.status(result.created ? 201 : 200).json({ message: result.message });
 
   } catch {
-    console.error(JSON.stringify({ event: "message_create_failed" }));
+    console.error(JSON.stringify({ event: "message_create_failed", instanceId: config.INSTANCE_ID, requestId: response.locals.requestId }));
     return response.status(503).json({ error: "Could not save the message. Retry with the same client message ID." });
   }
 }
@@ -84,7 +84,7 @@ export async function getMessages(request: Request, response: Response) {
     return response.json(result);
 
   } catch {
-    console.error(JSON.stringify({ event: "message_list_failed" }));
+    console.error(JSON.stringify({ event: "message_list_failed", instanceId: config.INSTANCE_ID, requestId: response.locals.requestId }));
     return response.status(503).json({ error: "Could not list messages. Please try again." });
   }
 }

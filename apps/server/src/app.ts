@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import express from "express";
 import { toNodeHandler } from "better-auth/node";
 import type { HealthResponse } from "@convox/contracts";
@@ -14,9 +15,14 @@ const app = express();
 
 app.disable("x-powered-by");
 app.use((request, response, next) => {
+  response.locals.requestId = randomUUID();
+  response.set("X-Request-ID", response.locals.requestId);
   if (!request.path.startsWith("/internal/") && !request.path.startsWith("/api/health/")) response.once("finish", () => {
     metrics.httpRequests++;
-    if (response.statusCode >= 500) metrics.httpErrors++;
+    if (response.statusCode >= 500) {
+      metrics.httpErrors++;
+      console.error(JSON.stringify({ event: "http_request_failed", instanceId: config.INSTANCE_ID, requestId: response.locals.requestId, status: response.statusCode }));
+    }
   });
   next();
 });

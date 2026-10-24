@@ -12,7 +12,10 @@ export type ChatState = {
   error: string | null;
 };
 
+export type ChatTelemetry = { event: "sync" | "reconnect"; outcome: "success" | "error" | "cancelled"; durationMs: number };
+
 type ChatOptions = {
+  onTelemetry?: (sample: ChatTelemetry) => void;
   userId: string;
   conversationId: string;
   onMessages: (messages: Message[]) => void;
@@ -70,6 +73,10 @@ export function createChatClient(options: ChatOptions) {
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let retryDelay = 500;
   let retryAt = 0;
+  let recoveryStarted: number | undefined;
+  function telemetry(event: ChatTelemetry["event"], outcome: ChatTelemetry["outcome"], started: number) {
+    try { void Promise.resolve(options.onTelemetry?.({ event, outcome, durationMs: Math.max(0, performance.now() - started) })).catch(() => {}); } catch { /* Optional instrumentation cannot interrupt recovery. */ }
+  }
 
   function getState(): ChatState {
 
@@ -216,6 +223,8 @@ export function createChatClient(options: ChatOptions) {
     syncRequested = true;
     if (syncingTask || stopped || unauthorized || halted || !ready) return syncingTask ?? Promise.resolve();
 
+    const syncStarted = performance.now();
+    let syncOutcome: ChatTelemetry["outcome"] = "cancelled";
     syncingTask = (async () => {
       syncing = true;
       historyHealthy = false;
@@ -254,14 +263,17 @@ export function createChatClient(options: ChatOptions) {
         }
       }
       historyHealthy = ready;
+      syncOutcome = ready ? "success" : "cancelled";
       if (!pending.some((entry) => !entry.error)) retryDelay = 500;
       notify(ready ? "connected" : "reconnecting", null);
     })().catch(() => {
       if (!stopped && !unauthorized && !halted) {
+        syncOutcome = "error";
         notify("error", "Could not synchronize messages. Retrying from the last complete sequence.");
         retryLater();
       }
     }).finally(() => {
+      telemetry("sync", syncOutcome, syncStarted);
       syncing = false;
       syncingTask = undefined;
       if (syncRequested && !retryTimer) void synchronizeHistory();
@@ -330,6 +342,10 @@ export function createChatClient(options: ChatOptions) {
     retryTimer = undefined;
     await synchronizeHistory();
     if (historyHealthy && options.resumePending !== false) await flushPending();
+    if (recoveryStarted !== undefined && historyHealthy && status === "connected" && pending.length === 0 && !stopped && !unauthorized && !halted) {
+      telemetry("reconnect", "success", recoveryStarted);
+      recoveryStarted = undefined;
+    }
   }
 
   function onReady(value: { instanceId: string; userId: string; generation?: string }) {
@@ -365,11 +381,14 @@ export function createChatClient(options: ChatOptions) {
     ready = false;
     historyHealthy = false;
     if (stopped || unauthorized || halted) return;
+    recoveryStarted ??= performance.now();
     notify("reconnecting");
     retryLater();
   }
 
   function onConnectError(value: Error & { data?: { code?: string } }) {
+
+    telemetry("reconnect", "error", recoveryStarted ?? performance.now());
 
     if (value.data?.code === "UNAUTHENTICATED") requireAuth();
     else if (value.data?.code === "EMAIL_NOT_VERIFIED") requireAuth("Verify your email from your account, then reopen this conversation. Pending sends remain saved.");
@@ -435,6 +454,8 @@ export function createChatClient(options: ChatOptions) {
 
     setTyping(false);
     clearPresence();
+    if (recoveryStarted !== undefined) telemetry("reconnect", "cancelled", recoveryStarted);
+    recoveryStarted = undefined;
     stopped = true;
     ready = false;
     controller.abort();

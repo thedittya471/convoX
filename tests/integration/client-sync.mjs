@@ -53,6 +53,9 @@ async function run() {
   const originalGeneration = (await pool.query("SELECT generation FROM history")).rows[0].generation;
   const received = new Map();
   const sentBodies = [];
+  const telemetry = [];
+  const timings = new Map();
+  const receiptMs = [];
   let current;
   let activeInstance;
   let holdHistory = false;
@@ -92,7 +95,9 @@ async function run() {
     const path = `/api/conversations/${conversationId}/messages`;
 
     async function sendFromBob(label) {
-      const response = await request(path, bob, { clientMessageId: randomUUID(), encryptedPayload: label });
+      const clientMessageId = randomUUID();
+      timings.set(clientMessageId, performance.now());
+      const response = await request(path, bob, { clientMessageId, encryptedPayload: label });
       assert.equal(response.status, 201);
       return (await response.json()).message;
     }
@@ -118,7 +123,8 @@ async function run() {
       const socket = io("http://nginx", { transports: ["websocket"], autoConnect: false, extraHeaders: { cookie: alice.cookie, origin }, reconnectionDelay: 250, reconnectionDelayMax: 1000, timeout: 2000 });
       socket.on("realtime:ready", (value) => { activeInstance = value.instanceId; });
       const client = createChatClient({ userId: alice.id, conversationId, after, generation, apiUrl: "http://nginx", socket, request: clientRequest,
-        onMessages: (batch) => { for (const message of batch) { assert.equal(received.has(message.id), false, "one client lifecycle must emit a message only once"); received.set(message.id, message); } }, ...overrides,
+        onTelemetry: (sample) => telemetry.push(sample),
+      onMessages: (batch) => { for (const message of batch) { assert.equal(received.has(message.id), false, "one client lifecycle must emit a message only once"); received.set(message.id, message); } }, ...overrides,
       });
       clients.push(client);
       return client;
@@ -188,15 +194,24 @@ async function run() {
     const persisted = await request(`${path}?after=0&limit=100`, alice);
     assert.deepEqual([...received.values()].map((row) => row.id), (await persisted.json()).messages.map((row) => row.id));
     assert.equal(received.size, 8);
+    assert.ok(telemetry.some((sample) => sample.event === "reconnect" && sample.outcome === "success"));
 
     const otherReceived = [];
-    const otherView = createClient("8", { onMessages: (batch) => otherReceived.push(...batch) });
+    const otherView = createClient("8", { onMessages: (batch) => {
+      for (const message of batch) {
+        const started = timings.get(message.clientMessageId);
+        if (started !== undefined) { receiptMs.push(performance.now() - started); timings.delete(message.clientMessageId); }
+      }
+      otherReceived.push(...batch);
+    } });
     await otherView.start();
     await until(() => otherView.getState().status === "connected");
     await current.stop();
     const afterClosing = await sendFromBob("other-view-remains-active");
     await until(() => otherView.getState().cursor === afterClosing.sequence);
     assert.deepEqual(otherReceived.map((message) => message.id), [afterClosing.id]);
+    assert.ok(receiptMs.every((value) => Number.isFinite(value) && value >= 0));
+    console.log(JSON.stringify({ event: "test_sender_to_applied_receipt", samples: receiptMs.length, missing: 0, durationMs: receiptMs[0], clock: "single-process monotonic", scope: "one live message; not a load result" }));
     assert.equal(received.size, 8, "closing one view prevents late history from reaching it");
     current = otherView;
 

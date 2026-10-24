@@ -591,3 +591,25 @@ test("Retry-After pauses HTTP retries while preserving the original pending ID",
     assert.equal(setup.rows.length, 1);
   } finally { await client.stop(); context.mock.timers.reset(); }
 });
+
+test("optional telemetry reports bounded sync failures and survives throwing collectors", async () => {
+  const setup = fixture();
+  const samples = [];
+  const client = setup.client({ onTelemetry: (sample) => { samples.push(sample); throw new Error("Collector unavailable"); } });
+  try {
+    await client.start();
+    await until(() => client.getState().status === "connected");
+    setup.status(503);
+    await client.synchronize();
+    assert.ok(samples.some((sample) => sample.event === "sync" && sample.outcome === "error"));
+    setup.status(200);
+    await client.synchronize();
+    const id = await client.send("telemetry does not block persistence");
+    await until(() => client.getState().pending.length === 0);
+    assert.equal(setup.rows[0].clientMessageId, id);
+    for (const sample of samples) {
+      assert.deepEqual(Object.keys(sample).sort(), ["durationMs", "event", "outcome"]);
+      assert.ok(Number.isFinite(sample.durationMs) && sample.durationMs >= 0);
+    }
+  } finally { await client.stop(); }
+});

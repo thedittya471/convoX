@@ -61,7 +61,7 @@ export function boundOutbound(socket: RealtimeSocket) {
   function check() {
     if (closing || queued + (websocket?.bufferedAmount ?? 0) <= config.SOCKET_OUTBOUND_BYTES) return;
     closing = true;
-    console.error(JSON.stringify({ event: "slow_socket_closed", instanceId: config.INSTANCE_ID }));
+    console.error(JSON.stringify({ event: "slow_socket_closed", instanceId: config.INSTANCE_ID, connectionId: socket.id }));
     socket.disconnect(true);
     websocket?.terminate();
   }
