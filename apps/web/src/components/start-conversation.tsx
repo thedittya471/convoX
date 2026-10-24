@@ -23,11 +23,14 @@ export function StartConversation({ userId, onOpen, onAuthRequired }: { userId: 
     active.current = controller;
     setBusy(true);
     setError("");
+
     try {
       const opened = await openConversation(username, userId, AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]));
+
       if (!controller.signal.aborted) onOpen(opened);
     } catch (failure) {
       if (!controller.signal.aborted && failure instanceof ConversationLookupError && [401, 403].includes(failure.status ?? 0)) onAuthRequired();
+
       if (!controller.signal.aborted) setError(failure instanceof ConversationLookupError ? failure.message : "Could not open the conversation. Check your connection and try again.");
     } finally {
       if (active.current === controller) setBusy(false);

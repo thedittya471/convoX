@@ -67,6 +67,7 @@ export const auth = betterAuth({
         value: user.id,
         expiresAt: new Date(Date.now() + verificationLifetimeSeconds * 1000),
       }).onConflictDoNothing();
+
       try {
         const link = new URL(url);
         link.searchParams.set("token", token);
@@ -88,20 +89,25 @@ export const auth = betterAuth({
         // Only authenticated owners can trigger delivery; anonymous requests are indistinguishable.
         if (!identity) return context.json({ status: true });
         const requestedEmail = context.body?.email;
+
         if (typeof requestedEmail !== "string" || identity.user.email.toLowerCase() !== requestedEmail.toLowerCase()) {
           throw new APIError("BAD_REQUEST", { message: "Use your signed-in email address." });
         }
+
         if (!await claimEmailQuota(`verify:${identity.user.id}`)) {
           throw new APIError("TOO_MANY_REQUESTS", { message: "Wait a minute before requesting another email." });
         }
       }
+
       if (context.path === "/verify-email") {
         let callback: URL;
+
         try {
           callback = new URL(String(context.query?.callbackURL ?? "/"), config.BETTER_AUTH_URL);
         } catch {
           throw new APIError("BAD_REQUEST", { message: "Invalid callback." });
         }
+
         if (callback.origin !== publicOrigin) {
           throw new APIError("FORBIDDEN", { message: "Invalid callback." });
         }
@@ -110,6 +116,7 @@ export const auth = betterAuth({
           eq(schema.verification.id, id),
           gt(schema.verification.expiresAt, new Date()),
         )).returning({ id: schema.verification.id });
+
         if (!consumed) throw context.redirect(`${publicOrigin}/?verification=invalid`);
       }
     }),

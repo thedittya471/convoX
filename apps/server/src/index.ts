@@ -13,7 +13,6 @@ let stopPublisher: (() => Promise<void>) | undefined;
 let stopping = false;
 
 async function shutdown(exitCode: number) {
-
   if (stopping) {
     return;
   }
@@ -33,7 +32,6 @@ async function shutdown(exitCode: number) {
     await pool.end();
     clearTimeout(deadline);
     process.exitCode = exitCode;
-
   } catch {
     console.error(JSON.stringify({ event: "shutdown_failed", instanceId: config.INSTANCE_ID }));
     process.exit(1);
@@ -44,7 +42,6 @@ process.on("SIGTERM", () => void shutdown(0));
 process.on("SIGINT", () => void shutdown(0));
 
 server.on("error", () => {
-
   console.error(JSON.stringify({ event: "http_server_error", instanceId: config.INSTANCE_ID }));
   void shutdown(1);
 });
@@ -55,14 +52,12 @@ try {
   stopPublisher = startOutboxPublisher((message, participants) => publishMessage(io, message, participants));
 
   server.listen(config.PORT, "0.0.0.0", () => {
-
     console.log(JSON.stringify({
       event: "listening",
       instanceId: config.INSTANCE_ID,
       port: config.PORT
     }));
   });
-
 } catch {
   console.error(JSON.stringify({ event: "startup_failed", instanceId: config.INSTANCE_ID }));
   await shutdown(1);

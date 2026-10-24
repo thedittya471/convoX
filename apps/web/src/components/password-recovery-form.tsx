@@ -21,19 +21,26 @@ export function PasswordRecoveryForm({ mode }: { mode: "request" | "reset" }) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
     if (submitting || invalidLink) return;
     const form = event.currentTarget;
     const fields = new FormData(form);
     setError("");
+
     if (reset && fields.get("password") !== fields.get("confirmation")) {
       setError("The passwords do not match. Please enter them again.");
       return;
     }
     setSubmitting(true);
+
     try {
       const result = reset
         ? await authClient.resetPassword({ token: token!, newPassword: String(fields.get("password") ?? "") })
-        : await authClient.requestPasswordReset({ email: String(fields.get("email") ?? "").trim(), redirectTo: `${window.location.origin}/reset-password` });
+        : await authClient.requestPasswordReset({
+          email: String(fields.get("email") ?? "").trim(),
+          redirectTo: `${window.location.origin}/reset-password`
+        });
+
       if (result.error) {
         if (result.error.status === 429) setError("Too many attempts. Wait a minute before trying again.");
         else if (result.error.status >= 500) setError("The server is temporarily unavailable. Please try again.");
@@ -43,6 +50,7 @@ export function PasswordRecoveryForm({ mode }: { mode: "request" | "reset" }) {
       }
       form.reset();
       setComplete(true);
+
       if (reset) window.history.replaceState(null, "", "/reset-password");
     } catch {
       setError("Could not reach the server. Check your connection and try again.");

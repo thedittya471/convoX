@@ -9,7 +9,6 @@ export type PendingMessage = CreateMessage & {
 };
 
 async function transaction<Result>(mode: IDBTransactionMode, operation: (store: IDBObjectStore) => IDBRequest<Result>): Promise<Result> {
-
   const database = await new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open("convox-message-outbox", 1);
     let blocked = false;
@@ -18,7 +17,10 @@ async function transaction<Result>(mode: IDBTransactionMode, operation: (store: 
       const store = request.result.createObjectStore("pending", { keyPath: "queueId", autoIncrement: true });
       store.createIndex("owner", ["userId", "conversationId"]);
     };
-    request.onblocked = () => { blocked = true; reject(new Error("Close other chat tabs to update local storage.")); };
+    request.onblocked = () => {
+      blocked = true;
+      reject(new Error("Close other chat tabs to update local storage."));
+    };
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
       if (blocked) request.result.close();
@@ -30,8 +32,14 @@ async function transaction<Result>(mode: IDBTransactionMode, operation: (store: 
     try {
       const current = database.transaction("pending", mode, { durability: "strict" });
       const request = operation(current.objectStore("pending"));
-      current.oncomplete = () => { database.close(); resolve(request.result); };
-      current.onabort = () => { database.close(); reject(current.error ?? new Error("Could not update the local outbox.")); };
+      current.oncomplete = () => {
+        database.close();
+        resolve(request.result);
+      };
+      current.onabort = () => {
+        database.close();
+        reject(current.error ?? new Error("Could not update the local outbox."));
+      };
     } catch (error) {
       database.close();
       reject(error);
@@ -40,7 +48,6 @@ async function transaction<Result>(mode: IDBTransactionMode, operation: (store: 
 }
 
 export async function loadPendingMessages(userId: string, conversationId: string): Promise<PendingMessage[]> {
-
   const rows = await transaction<PendingMessage[]>("readonly", (store) => store.index("owner").getAll([userId, conversationId]));
 
   return rows.map((row) => {
@@ -50,18 +57,22 @@ export async function loadPendingMessages(userId: string, conversationId: string
       throw new Error("The local message outbox is invalid. Its contents have not been deleted.");
     }
 
-    return { ...envelope, queueId: row.queueId, userId, conversationId, error: row.error,
-      ...(row.generation === undefined ? {} : { generation: messageHistoryPageSchema.shape.generation.parse(row.generation) }) };
+    return {
+      ...envelope,
+      queueId: row.queueId,
+      userId,
+      conversationId,
+      error: row.error,
+      ...(row.generation === undefined ? {} : { generation: messageHistoryPageSchema.shape.generation.parse(row.generation) })
+    };
   });
 }
 
 export async function savePendingMessage(message: Omit<PendingMessage, "queueId"> | PendingMessage) {
-
   const queueId = await transaction<IDBValidKey>("readwrite", (store) => store.put(message));
   return { ...message, queueId: Number(queueId) };
 }
 
 export async function removePendingMessage(queueId: number) {
-
   await transaction("readwrite", (store) => store.delete(queueId));
 }

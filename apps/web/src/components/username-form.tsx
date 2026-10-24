@@ -17,17 +17,21 @@ export function UsernameForm({ username }: { username: string | null | undefined
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
     if (saving) return;
     setError("");
     setMessage("");
     const parsed = usernameSchema.safeParse(value);
+
     if (!parsed.success) {
       setError("Use 3–30 letters, numbers, underscores or dots for your username.");
       return;
     }
     setSaving(true);
+
     try {
       const result = await authClient.updateUser({ username: parsed.data });
+
       if (result.error) {
         if (result.error.code === "USERNAME_IS_ALREADY_TAKEN") setError("That username is already taken. Choose another.");
         else if (result.error.status === 401 || result.error.status === 403) setError("Sign in again before changing your username.");

@@ -6,12 +6,10 @@ import { user } from "../db/schema/auth.schema.js";
 import { conversation } from "../db/schema/conversation.schema.js";
 
 export async function createDirectConversation(userId: string, otherUserId: string) {
-
   const [directUserLowId, directUserHighId] = [userId, otherUserId]
     .sort((first, second) => Buffer.compare(Buffer.from(first), Buffer.from(second)));
 
   return db.transaction(async (transaction) => {
-
     const [peer] = await transaction.select({
       id: user.id,
       name: user.name,
@@ -59,7 +57,6 @@ export async function createDirectConversation(userId: string, otherUserId: stri
 }
 
 export async function listConversations(userId: string, { limit, cursor }: ConversationListQuery) {
-
   const rows = await db.select({
     id: conversation.id,
     createdAt: conversation.createdAt,

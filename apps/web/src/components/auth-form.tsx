@@ -26,6 +26,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
     if (submitting) return;
     const form = event.currentTarget;
     const fields = new FormData(form);
@@ -33,22 +34,26 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
     const email = String(fields.get("email") ?? "").trim();
     const password = String(fields.get("password") ?? "");
     setError("");
+
     if (signup && !name) {
       setError("Please enter your name.");
       return;
     }
     const requestedUsername = String(fields.get("username") ?? "");
     const parsedUsername = requestedUsername ? usernameSchema.safeParse(requestedUsername) : null;
+
     if (signup && parsedUsername && !parsedUsername.success) {
       setError("Use 3–30 letters, numbers, underscores or dots for your username.");
       return;
     }
     const username = parsedUsername?.success ? parsedUsername.data : undefined;
     setSubmitting(true);
+
     try {
       const result = signup
         ? await authClient.signUp.email({ name, email, password, username })
         : await authClient.signIn.email({ email, password });
+
       if (result.error) {
         if (result.error.code === "USERNAME_IS_ALREADY_TAKEN") {
           setError("That username is already taken. Choose another, or leave it blank to set one later.");

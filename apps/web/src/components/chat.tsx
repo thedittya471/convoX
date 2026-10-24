@@ -38,6 +38,7 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
 
   function handleFailure(failure: unknown) {
     if (failure instanceof HistoryError && [401, 403].includes(failure.status)) return onAuthRequired();
+
     if (failure instanceof HistoryError && [404, 409, 410].includes(failure.status)) {
       void client.current?.stop();
       active.current?.abort();
@@ -60,14 +61,21 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
       setMessages(page.messages);
       setGeneration(page.generation);
       setLoading(false);
+
       try {
         const savedPending = await loadPendingMessages(userId, conversationId);
+
         if (controller.signal.aborted) return;
         const queueMatches = savedPending.every((entry) => entry.generation === page.generation);
-        current = createChatClient({ userId, conversationId, after: page.headSequence, generation: page.generation,
+        current = createChatClient({
+          userId,
+          conversationId,
+          after: page.headSequence,
+          generation: page.generation,
           resumePending: queueMatches,
           onMessages: (batch) => {
             if (controller.signal.aborted) return;
+
             if (browsingOlder.current) setNewMessages(true);
             else setMessages((rows) => mergeHistory(rows, batch, "live"));
           },
@@ -77,7 +85,9 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
             setPresence(state.presence);
             setPending(state.pending);
             setStatus(state.status);
+
             if (state.status === "unauthenticated") return onAuthRequired();
+
             if (["recovery-required", "unavailable"].includes(state.status)) {
               setCanSend(false);
               setLoading(false);
@@ -92,8 +102,10 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
         });
         client.current = current;
         await current.start();
+
         if (controller.signal.aborted) return;
         setCanSend(queueMatches);
+
         if (!queueMatches) setSendError("Pending messages from an earlier history are preserved. They need review before sending can resume.");
       } catch {
         if (controller.signal.aborted) return;
@@ -112,11 +124,17 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
         setLoading(false);
       }
     });
-    return () => { controller.abort(); void current?.stop(); };
+    return () => {
+      controller.abort();
+      void current?.stop();
+    };
   }, [userId, conversationId, attempt, onAuthRequired]);
 
   useEffect(() => {
-    function stopWhenHidden() { if (document.hidden) client.current?.setTyping(false); }
+    function stopWhenHidden() {
+      if (document.hidden) client.current?.setTyping(false);
+    }
+
     document.addEventListener("visibilitychange", stopWhenHidden);
     return () => document.removeEventListener("visibilitychange", stopWhenHidden);
   }, []);
@@ -124,6 +142,7 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
   useLayoutEffect(() => {
     if (!anchor.current || !viewport.current) return;
     const row = viewport.current.querySelector<HTMLElement>(`[data-message-id="${anchor.current.id}"]`);
+
     if (row) viewport.current.scrollTop += row.getBoundingClientRect().top - anchor.current.top;
     anchor.current = null;
   }, [messages]);
@@ -136,8 +155,13 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
     setTyping(false);
     setPresence("unavailable");
     setStatus("loading");
-    setCanSend(false); setSendError("");
-    setMessages([]); setError(""); setReset(false); setNewMessages(false); setLoading(true);
+    setCanSend(false);
+    setSendError("");
+    setMessages([]);
+    setError("");
+    setReset(false);
+    setNewMessages(false);
+    setLoading(true);
     setAttempt((value) => value + 1);
   }
 
@@ -146,23 +170,31 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
     const controller = active.current;
     const visible = [...(viewport.current?.querySelectorAll<HTMLElement>("[data-message-id]") ?? [])]
       .find((row) => row.getBoundingClientRect().bottom > (viewport.current?.getBoundingClientRect().top ?? 0));
+
     if (visible) anchor.current = { id: visible.dataset.messageId!, top: visible.getBoundingClientRect().top };
     browsingOlder.current = true;
-    setLoading(true); setError("");
+    setLoading(true);
+    setError("");
+
     try {
       const page = await loadHistory(userId, conversationId, AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]), { before, generation });
+
       if (controller.signal.aborted) return;
       browsingOlder.current = true;
       setMessages((rows) => mergeHistory(rows, page.messages, "older"));
     } catch (failure) {
       anchor.current = null;
+
       if (!controller.signal.aborted) handleFailure(failure);
-    } finally { if (!controller.signal.aborted) setLoading(false); }
+    } finally {
+      if (!controller.signal.aborted) setLoading(false);
+    }
   }
 
   async function sendDraft() {
     if (!canSend || !client.current || submitting.current) return;
     client.current.setTyping(false);
+
     if (!draft.trim() || !createMessageSchema.shape.encryptedPayload.safeParse(draft).success) {
       setSendError("Enter a message of up to 8,192 characters.");
       return;
@@ -170,14 +202,19 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
     const current = client.current;
     const controller = active.current;
     submitting.current = true;
-    setSaving(true); setSendError("");
+    setSaving(true);
+    setSendError("");
+
     try {
       await current.send(draft);
       setDraft("");
     } catch (failure) {
       if (controller?.signal.aborted || current !== client.current) return;
       setSendError(failure instanceof RangeError ? failure.message : "Your draft is preserved. Could not save the message on this device. Check available storage and chat access, then try again.");
-    } finally { submitting.current = false; setSaving(false); }
+    } finally {
+      submitting.current = false;
+      setSaving(false);
+    }
   }
 
   async function retryMessage(clientMessageId: string) {
@@ -185,11 +222,18 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
     const current = client.current;
     const controller = active.current;
     submitting.current = true;
-    setRetrying(clientMessageId); setSendError("");
-    try { await current.retry(clientMessageId); }
+    setRetrying(clientMessageId);
+    setSendError("");
+
+    try {
+      await current.retry(clientMessageId);
+    }
     catch {
       if (!controller?.signal.aborted && current === client.current) setSendError("Could not retry. The original message remains saved on this device.");
-    } finally { submitting.current = false; setRetrying(null); }
+    } finally {
+      submitting.current = false;
+      setRetrying(null);
+    }
   }
 
   return <section aria-label={`Messages with ${peerName}`}>
@@ -219,19 +263,26 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
           onClick={() => void retryMessage(entry.clientMessageId)}>{retrying === entry.clientMessageId ? "Retrying…" : "Retry this message"}</button>}
       </li>)}
     </ul>
-    {!reset && !unavailable && <form className="message-composer" onSubmit={(event) => { event.preventDefault(); void sendDraft(); }}>
+    {!reset && !unavailable && <form className="message-composer" onSubmit={(event) => {
+      event.preventDefault();
+      void sendDraft();
+    }}>
       <div className="form-field">
-      <label htmlFor="message-draft">Message to {peerName}</label>
-      <textarea id="message-draft" value={draft} maxLength={16384} required readOnly={saving}
-        aria-describedby="message-help message-send-error" onBlur={() => client.current?.setTyping(false)}
-        onChange={(event) => { setDraft(event.target.value); client.current?.setTyping(Boolean(event.target.value.trim())); }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-            event.preventDefault(); event.currentTarget.form?.requestSubmit();
-          }
-        }} />
-      <p id="message-help">Enter sends. Shift+Enter adds a new line. {[...draft].length}/8,192 characters.</p>
-      <p id="message-send-error" role="alert" className="form-error">{sendError}</p>
+        <label htmlFor="message-draft">Message to {peerName}</label>
+        <textarea id="message-draft" value={draft} maxLength={16384} required readOnly={saving}
+          aria-describedby="message-help message-send-error" onBlur={() => client.current?.setTyping(false)}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            client.current?.setTyping(Boolean(event.target.value.trim()));
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }} />
+        <p id="message-help">Enter sends. Shift+Enter adds a new line. {[...draft].length}/8,192 characters.</p>
+        <p id="message-send-error" role="alert" className="form-error">{sendError}</p>
       </div>
       <button className="primary-button" type="submit" disabled={!canSend || saving || retrying !== null || !draft.trim()}>{saving ? "Saving…" : "Send message"}</button>
     </form>}

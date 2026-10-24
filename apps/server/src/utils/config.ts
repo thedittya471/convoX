@@ -37,22 +37,38 @@ const configSchema = z.object({
   if (value.DEPLOYMENT_MODE === "production") {
     const invalid = (field: string) => context.addIssue({ code: "custom", path: [field], message: "Invalid production configuration." });
     const origin = new URL(value.BETTER_AUTH_URL);
+
     if (origin.protocol !== "https:" || origin.pathname !== "/" || origin.search || origin.hash || origin.username || origin.password) invalid("BETTER_AUTH_URL");
+
     if (value.BETTER_AUTH_SECRET.length < 48) invalid("BETTER_AUTH_SECRET");
+
     if (!value.METRICS_TOKEN || value.METRICS_TOKEN === value.BETTER_AUTH_SECRET) invalid("METRICS_TOKEN");
+
     if (!value.SMTP_HOST || value.SMTP_TLS === "local") invalid("SMTP_HOST");
+
     for (const field of ["DATABASE_URL", "REDIS_URL"] as const) {
       try {
         const password = decodeURIComponent(new URL(value[field]).password);
+
         if (!password || ["convox_dev", "password", "change-me"].includes(password)) invalid(field);
-      } catch { invalid(field); }
+      } catch {
+        invalid(field);
+      }
     }
+
     if (value.TRUSTED_PROXY_CIDRS === defaultProxies || value.TRUSTED_PROXY_CIDRS.split(",").some((entry) => entry.trim().endsWith("/0"))) invalid("TRUSTED_PROXY_CIDRS");
   }
+
   if (value.SMTP_HOST && !value.SMTP_FROM) context.addIssue({ code: "custom", path: ["SMTP_FROM"], message: "A sender is required." });
+
   if (Boolean(value.SMTP_USER) !== Boolean(value.SMTP_PASSWORD)) context.addIssue({ code: "custom", path: ["SMTP_USER"], message: "Both SMTP credentials are required." });
+
   if (value.SMTP_TLS === "local" && (!['localhost', '127.0.0.1', 'mailpit'].includes(value.SMTP_HOST ?? '') || new URL(value.BETTER_AUTH_URL).protocol !== "http:")) {
-    context.addIssue({ code: "custom", path: ["SMTP_TLS"], message: "Unencrypted SMTP is restricted to local development." });
+    context.addIssue({
+      code: "custom",
+      path: ["SMTP_TLS"],
+      message: "Unencrypted SMTP is restricted to local development."
+    });
   }
 });
 

@@ -46,6 +46,7 @@ export function trackPresence(socket: RealtimeSocket) {
     if (!watched || closed || !socket.connected) return;
     const value = { conversationId: watched, state };
     socket.emit("presence:changed", value);
+
     if (state === "unavailable") socket.emit("typing:changed", { conversationId: watched, expiresInMs: 0 });
   }
 
@@ -54,20 +55,27 @@ export function trackPresence(socket: RealtimeSocket) {
     busy = true;
     const selected = watched;
     let writtenTypingKey: string | undefined;
+
     try {
       const [active] = await db.select({ id: session.id }).from(session).innerJoin(user, eq(user.id, session.userId))
         .where(and(eq(session.id, socket.data.sessionId), eq(session.userId, socket.data.userId), gt(session.expiresAt, new Date()), eq(user.emailVerified, true)));
+
       if (closed) return;
+
       if (!active) {
         socket.emit("auth:required");
         socket.disconnect(true);
         return;
       }
+
       if (!publisher.isReady || !subscriber.isReady) throw new Error("Activity is unavailable");
       await publisher.eval(refreshLease, { keys: [ownKey], arguments: [token, String(activityTiming.leaseMs)] });
+
       if (!selected || selected !== watched || closed) return;
       const [row] = await db.select().from(conversation).where(eq(conversation.id, selected));
+
       if (selected !== watched || closed) return;
+
       if (!row || ![row.directUserLowId, row.directUserHighId].includes(socket.data.userId)) {
         emit("unavailable");
         watched = undefined;
@@ -75,36 +83,43 @@ export function trackPresence(socket: RealtimeSocket) {
       }
       const activity = typingRequest;
       typingRequest = undefined;
+
       if (activity) {
         writtenTypingKey = typingLeaseKey(selected, socket.data.userId);
         typingKey = writtenTypingKey;
         const ttl = activityTiming.typingMs - (Date.now() - activity.at);
+
         if (activity.active && ttl > 0) await publisher.eval(refreshLease, { keys: [writtenTypingKey], arguments: [token, String(ttl)] });
         else await publisher.zRem(writtenTypingKey, token);
       }
       const peerId = row.directUserLowId === socket.data.userId ? row.directUserHighId : row.directUserLowId;
       const count = await publisher.eval(readLease, { keys: [leaseKey(peerId)], arguments: [] });
       const expiresInMs = Number(await publisher.eval(readTyping, { keys: [typingLeaseKey(selected, peerId)], arguments: [] }));
+
       if (selected === watched && !closed) {
         emit(Number(count) > 0 ? "online" : "offline");
         socket.emit("typing:changed", { conversationId: selected, expiresInMs });
       }
     } catch {
       typingRequest = undefined;
+
       if (selected === watched) emit("unavailable");
     } finally {
       busy = false;
+
       if (!closed && (selected !== watched || typingRequest)) void tick();
-      if ((closed || selected !== watched) && writtenTypingKey && publisher.isReady) void publisher.zRem(writtenTypingKey, token).catch(() => {});
+
+      if ((closed || selected !== watched) && writtenTypingKey && publisher.isReady) void publisher.zRem(writtenTypingKey, token).catch(() => { });
       // Disconnect can race a pending refresh: remove this token once more after it finishes.
-      if (closed && publisher.isReady) void publisher.zRem(ownKey, token).catch(() => {});
+      if (closed && publisher.isReady) void publisher.zRem(ownKey, token).catch(() => { });
     }
   }
 
   socket.on("activity:watch", (value) => {
     if (Date.now() - lastWatch < 1000) return;
     lastWatch = Date.now();
-    if (typingKey && publisher.isReady) void publisher.zRem(typingKey, token).catch(() => {});
+
+    if (typingKey && publisher.isReady) void publisher.zRem(typingKey, token).catch(() => { });
     typingKey = undefined;
     typingRequest = undefined;
     const parsed = activityWatchSchema.safeParse(value);
@@ -114,12 +129,18 @@ export function trackPresence(socket: RealtimeSocket) {
   });
   socket.on("typing:set", (value) => {
     const parsed = typingCommandSchema.safeParse(value);
+
     if (!parsed.success || parsed.data.conversationId !== watched || closed) return;
     const now = Date.now();
+
     if (parsed.data.active && now - lastTyping < activityTiming.typingThrottleMs) return;
+
     if (!parsed.data.active && now - lastTypingStop < 250) return;
+
     if (!parsed.data.active) lastTypingStop = now;
+
     if (!parsed.data.active && !typingKey && !typingRequest?.active) return;
+
     if (parsed.data.active) lastTyping = now;
     typingRequest = { active: parsed.data.active, at: now };
     void tick();
@@ -129,8 +150,10 @@ export function trackPresence(socket: RealtimeSocket) {
   socket.once("disconnect", () => {
     closed = true;
     clearInterval(timer);
-    if (typingKey && publisher.isReady) void publisher.zRem(typingKey, token).catch(() => {});
-    if (publisher.isReady) void publisher.zRem(ownKey, token).catch(() => {});
+
+    if (typingKey && publisher.isReady) void publisher.zRem(typingKey, token).catch(() => { });
+
+    if (publisher.isReady) void publisher.zRem(ownKey, token).catch(() => { });
   });
   void tick();
 }

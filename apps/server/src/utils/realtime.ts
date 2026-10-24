@@ -25,7 +25,6 @@ type RealtimeServer = Server<ActivityCommands, RealtimeEvents, ClusterEvents, So
 export type RealtimeSocket = Socket<ActivityCommands, RealtimeEvents, ClusterEvents, SocketIdentity>;
 
 export function createRealtimeServer(server: HttpServer): RealtimeServer {
-
   const origin = new URL(config.BETTER_AUTH_URL).origin;
   const io: RealtimeServer = new Server(server, {
     transports: ["websocket"],
@@ -46,7 +45,6 @@ export function createRealtimeServer(server: HttpServer): RealtimeServer {
     response.end();
   });
   io.use(async (socket, next) => {
-
     try {
       const identity = await auth.api.getSession({ headers: fromNodeHeaders(socket.request.headers) });
 
@@ -60,25 +58,31 @@ export function createRealtimeServer(server: HttpServer): RealtimeServer {
 
       socket.data = { userId: identity.user.id, sessionId: identity.session.id };
       next();
-
     } catch {
       next(new Error("Could not authenticate the connection."));
     }
   });
 
   io.on("connection", async (socket) => {
-
     metrics.activeSockets++;
-    socket.once("disconnect", () => { metrics.activeSockets--; });
+    socket.once("disconnect", () => {
+      metrics.activeSockets--;
+    });
     boundOutbound(socket);
     let eventWindow = Date.now(), events = 0;
     socket.use((_packet, next) => {
-      if (Date.now() - eventWindow >= 1000) { eventWindow = Date.now(); events = 0; }
+      if (Date.now() - eventWindow >= 1000) {
+        eventWindow = Date.now();
+        events = 0;
+      }
+
       if (++events > 20) return socket.disconnect(true);
       next();
     });
+
     try {
       const [current] = await db.select().from(history);
+
       if (!current) throw new Error("History generation is unavailable");
       await socket.join(`user:${socket.data.userId}`);
       trackPresence(socket);
@@ -89,11 +93,9 @@ export function createRealtimeServer(server: HttpServer): RealtimeServer {
   });
 
   io.on("message:dispatch", async (message, participants, acknowledge) => {
-
     try {
       await deliverLocally(io, message, participants);
       acknowledge(null);
-
     } catch {
       acknowledge("Could not dispatch the message.");
     }
@@ -105,14 +107,12 @@ export function createRealtimeServer(server: HttpServer): RealtimeServer {
 }
 
 export async function connectRealtime(io: RealtimeServer) {
-
   await Promise.all([publisher.connect(), subscriber.connect()]);
   io.adapter(createShardedAdapter(publisher, subscriber, { channelPrefix: "convox", subscriptionMode: "static" }));
   await subscriber.ping();
 }
 
 async function deliverLocally(io: RealtimeServer, message: Message, participants: string[]) {
-
   const sockets = await io.local.in(participants.map((id) => `user:${id}`)).fetchSockets();
 
   if (sockets.length === 0) {
@@ -122,6 +122,7 @@ async function deliverLocally(io: RealtimeServer, message: Message, participants
   const active = await db.select({ id: session.id }).from(session).innerJoin(user, eq(user.id, session.userId))
     .where(and(inArray(session.id, [...new Set(sockets.map((socket) => socket.data.sessionId))]), gt(session.expiresAt, new Date()), eq(user.emailVerified, true)));
   const [current] = await db.select().from(history);
+
   if (!current) throw new Error("History generation is unavailable");
   const activeIds = new Set(active.map((row) => row.id));
 
@@ -136,31 +137,31 @@ async function deliverLocally(io: RealtimeServer, message: Message, participants
 }
 
 export async function publishMessage(io: RealtimeServer, message: Message, participants: string[]) {
-
   const started = performance.now();
+
   try {
+    if (!publisher.isReady || !subscriber.isReady) {
+      throw new Error("Realtime routing is unavailable");
+    }
 
-  if (!publisher.isReady || !subscriber.isReady) {
-    throw new Error("Realtime routing is unavailable");
+    await new Promise<void>((resolve, reject) => {
+      const deadline = setTimeout(() => reject(new Error("Realtime dispatch timed out")), 6000);
+      const acknowledge = (error: Error | null, responses: (string | null)[] = []) => {
+        clearTimeout(deadline);
+
+        if (error || responses.some((value) => value !== null)) {
+          reject(error ?? new Error("A server could not dispatch the message"));
+        } else {
+          resolve();
+        }
+      };
+
+      Promise.resolve(io.sockets.adapter.serverSideEmit(["message:dispatch", message, participants, acknowledge]))
+        .catch(acknowledge);
+    });
+
+    await deliverLocally(io, message, participants);
+  } finally {
+    observeRouting((performance.now() - started) / 1000);
   }
-
-  await new Promise<void>((resolve, reject) => {
-
-    const deadline = setTimeout(() => reject(new Error("Realtime dispatch timed out")), 6000);
-    const acknowledge = (error: Error | null, responses: (string | null)[] = []) => {
-      clearTimeout(deadline);
-
-      if (error || responses.some((value) => value !== null)) {
-        reject(error ?? new Error("A server could not dispatch the message"));
-      } else {
-        resolve();
-      }
-    };
-
-    Promise.resolve(io.sockets.adapter.serverSideEmit(["message:dispatch", message, participants, acknowledge]))
-      .catch(acknowledge);
-  });
-
-  await deliverLocally(io, message, participants);
-  } finally { observeRouting((performance.now() - started) / 1000); }
 }

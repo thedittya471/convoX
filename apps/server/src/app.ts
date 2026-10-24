@@ -17,18 +17,27 @@ app.disable("x-powered-by");
 app.use((request, response, next) => {
   response.locals.requestId = randomUUID();
   response.set("X-Request-ID", response.locals.requestId);
+
   if (!request.path.startsWith("/internal/") && !request.path.startsWith("/api/health/")) response.once("finish", () => {
     metrics.httpRequests++;
+
     if (response.statusCode >= 500) {
       metrics.httpErrors++;
-      console.error(JSON.stringify({ event: "http_request_failed", instanceId: config.INSTANCE_ID, requestId: response.locals.requestId, status: response.statusCode }));
+      console.error(JSON.stringify({
+        event: "http_request_failed",
+        instanceId: config.INSTANCE_ID,
+        requestId: response.locals.requestId,
+        status: response.statusCode
+      }));
     }
   });
   next();
 });
 app.get("/internal/metrics", async (request, response) => {
   response.set("Cache-Control", "no-store");
+
   if (!metricsAuthorized(request.get("authorization"))) return response.sendStatus(404);
+
   try {
     const result = await pool.query("SELECT count(*)::int AS pending, COALESCE(extract(epoch FROM now()-min(created_at)),0)::float AS age FROM message_outbox WHERE published_at IS NULL");
     response.type("text/plain; version=0.0.4").send(metricsText(result.rows[0].pending, Math.max(0, result.rows[0].age), true));
@@ -50,7 +59,6 @@ app.use("/api/users", usersRouter);
 app.use("/api/conversations", conversationsRouter);
 
 app.get("/api/health/live", (_request, response) => {
-
   response.set("Cache-Control", "no-store").json({
     status: "ok",
     instanceId: config.INSTANCE_ID,
@@ -58,7 +66,6 @@ app.get("/api/health/live", (_request, response) => {
 });
 
 app.get("/api/health/ready", async (_request, response) => {
-
   const ready = await httpReady();
 
   response.status(ready ? 200 : 503).set("Cache-Control", "no-store").json({

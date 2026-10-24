@@ -17,6 +17,7 @@ export async function claimQuota(scope: string, identity: string, limit: number)
       last_request = CASE WHEN rate_limit.last_request <= EXCLUDED.last_request - 60000
         THEN EXCLUDED.last_request ELSE rate_limit.last_request END
     RETURNING count, GREATEST(1, ceil((last_request + 60000 - extract(epoch FROM clock_timestamp()) * 1000) / 1000))::int AS retry_after`, [randomUUID(), key, limit]);
+
   if (Date.now() >= nextCleanup) {
     nextCleanup = Date.now() + 60000;
     // Bound opportunistic cleanup and leave Better Auth's independently owned buckets alone.
@@ -30,8 +31,10 @@ export async function claimQuota(scope: string, identity: string, limit: number)
 
 export async function enforceChatLimit(response: Response, scope: string, identity: string, limit: number) {
   response.set("Cache-Control", "no-store");
+
   try {
     const quota = await claimQuota(scope, identity, limit);
+
     if (quota.allowed) return true;
     response.set("Retry-After", String(quota.retryAfter)).status(429).json({ error: "Too many requests. Retry after the indicated delay.", retryAfter: quota.retryAfter });
   } catch {

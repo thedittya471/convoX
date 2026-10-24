@@ -62,7 +62,7 @@ export const messageListQuerySchema = z.object({
   generation: z.uuid().optional(),
 }).strict().refine((value) => [value.after, value.before, value.recent].filter((item) => item !== undefined).length <= 1,
   "Choose only one pagination mode").transform((value) =>
-  value.before === undefined && value.recent === undefined ? { ...value, after: value.after ?? "0" } : value);
+    value.before === undefined && value.recent === undefined ? { ...value, after: value.after ?? "0" } : value);
 
 export const messageSchema = z.object({
   id: z.uuid(),

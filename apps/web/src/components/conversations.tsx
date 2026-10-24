@@ -40,6 +40,7 @@ export function Conversations({ userId }: { userId: string }) {
       setLoaded(true);
     }).catch((failure: unknown) => {
       if (controller.signal.aborted) return;
+
       if (failure instanceof ConversationLookupError && [401, 403].includes(failure.status ?? 0)) leaveChat();
       else setError("Could not load conversations. Your selection is preserved. Please try again.");
     }).finally(() => {
@@ -92,7 +93,10 @@ export function Conversations({ userId }: { userId: string }) {
           {selected ? <>
             <p>{selected.peer.username ? `@${selected.peer.username}` : "This participant has not chosen a username."}</p>
             <Chat key={`${userId}:${selected.id}`} userId={userId} conversationId={selected.id} peerName={selected.peer.name} onAuthRequired={leaveChat} />
-            <button className="primary-button" type="button" onClick={() => { setSelected(null); listHeading.current?.focus(); }}>Back to conversations</button>
+            <button className="primary-button" type="button" onClick={() => {
+              setSelected(null);
+              listHeading.current?.focus();
+            }}>Back to conversations</button>
           </> : <p>Select a participant from the list or find someone above.</p>}
         </section>
       </div>

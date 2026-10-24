@@ -11,9 +11,7 @@ import { config } from "../utils/config.js";
 type PublishMessage = (message: Message, participants: string[]) => Promise<void>;
 
 export async function publishNextMessage(publish: PublishMessage) {
-
   return db.transaction(async (transaction) => {
-
     const [pending] = await transaction.select({ message, conversation })
       .from(messageOutbox)
       .innerJoin(message, eq(message.id, messageOutbox.messageId))
@@ -28,7 +26,10 @@ export async function publishNextMessage(publish: PublishMessage) {
     }
 
     metrics.publishAttempts++;
-    try { await publish(serializeMessage(pending.message), [pending.conversation.directUserLowId, pending.conversation.directUserHighId]); }
+
+    try {
+      await publish(serializeMessage(pending.message), [pending.conversation.directUserLowId, pending.conversation.directUserHighId]);
+    }
     catch (error) {
       metrics.publishErrors++;
       console.error(JSON.stringify({ event: "outbox_dispatch_failed", instanceId: config.INSTANCE_ID, messageId: pending.message.id }));
@@ -41,19 +42,17 @@ export async function publishNextMessage(publish: PublishMessage) {
 }
 
 export function startOutboxPublisher(publish: PublishMessage) {
-
   let stopped = false;
   let retrying = false;
   const running = (async () => {
-
     while (!stopped) {
       try {
         if (retrying) metrics.publisherRetries++;
         retrying = false;
+
         if (!await publishNextMessage(publish)) {
           await sleep(100);
         }
-
       } catch {
         retrying = true;
         console.error(JSON.stringify({ event: "outbox_publish_failed", instanceId: config.INSTANCE_ID }));

@@ -13,5 +13,8 @@ export const publisher = createClient({
 export const subscriber = publisher.duplicate();
 
 for (const client of [publisher, subscriber]) {
-  client.on("error", () => { metrics.redisErrors++; console.error(JSON.stringify({ event: "redis_error", instanceId: config.INSTANCE_ID })); });
+  client.on("error", () => {
+    metrics.redisErrors++;
+    console.error(JSON.stringify({ event: "redis_error", instanceId: config.INSTANCE_ID }));
+  });
 }

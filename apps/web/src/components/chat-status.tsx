@@ -19,6 +19,7 @@ export const connectionLabels: Record<Status, string> = {
 
 export function connectionAnnouncement(status: Status) {
   if (["connecting", "syncing"].includes(status)) return "Connecting and synchronizing messages.";
+
   if (["error", "reconnecting"].includes(status)) return "Connection interrupted. Recovering automatically; pending messages remain saved.";
   return connectionLabels[status];
 }

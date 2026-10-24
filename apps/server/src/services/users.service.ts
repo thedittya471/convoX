@@ -4,7 +4,6 @@ import { db } from "../db/client.js";
 import { user } from "../db/schema/auth.schema.js";
 
 export async function findUserByUsername(username: string, currentUserId: string): Promise<PublicUser | null> {
-
   const [found] = await db.select({
     id: user.id,
     username: user.username,

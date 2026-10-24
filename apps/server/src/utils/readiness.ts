@@ -6,14 +6,21 @@ export const lifecycle = { draining: false };
 let checkedAt = -Infinity;
 let healthy = false;
 let checking: Promise<boolean> | undefined;
+
 export async function httpReady() {
   if (lifecycle.draining) return false;
+
   if (performance.now() - checkedAt < 250) return healthy;
-  checking ??= pool.query("SELECT 1").then(() => true, () => { metrics.databaseErrors++; return false; }).then((value) => {
+  checking ??= pool.query("SELECT 1").then(() => true, () => {
+    metrics.databaseErrors++;
+    return false;
+  }).then((value) => {
     healthy = value;
     checkedAt = performance.now();
     return value;
-  }).finally(() => { checking = undefined; });
+  }).finally(() => {
+    checking = undefined;
+  });
   return await checking && !lifecycle.draining;
 }
 

@@ -25,8 +25,10 @@ function Account() {
     setSendingVerification(true);
     setVerificationMessage("");
     setVerificationError("");
+
     try {
       const result = await authClient.sendVerificationEmail({ email: session.user.email, callbackURL: "/" });
+
       if (result.error) {
         setVerificationError(result.error.status === 429 ? "Too many requests. Wait a minute before trying again." : "Could not send the email. Please try again.");
       } else {
@@ -43,8 +45,10 @@ function Account() {
     if (signingOut) return;
     setSigningOut(true);
     setSignOutError("");
+
     try {
       const result = await authClient.signOut();
+
       if (result.error) {
         setSignOutError("Could not sign out. Please try again.");
         setSigningOut(false);
@@ -58,6 +62,7 @@ function Account() {
   }
 
   let content;
+
   if (isPending) {
     content = <p role="status">Checking your session…</p>;
   } else if (error) {
