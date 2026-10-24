@@ -59,6 +59,16 @@ Group conversations, attachments, message editing/deletion, full-text search, re
 
 Automatic failover of shared storage or routing infrastructure is not included in the single-application-instance recovery target. Safe behavior during dependency outages remains required.
 
+### 5.3 Approved first-release decisions (2026-10-24)
+
+The owner selected TLS-protected, server-readable text. HTTPS/WSS protects deployed traffic; the service and authorized database operators can read stored content. E2EE, cryptographic device linking/revocation and key recovery remain excluded. Simultaneous authenticated browser tabs/devices remain included under FR-12. The legacy API property `encryptedPayload` continues to carry the exact supplied text string; its name is not an encryption guarantee. Existing opaque test records are preserved without conversion, and no destructive migration is needed for this decision.
+
+Discovery uses an exact username, not a directory listing. Usernames remain editable subject to normalization and uniqueness. Verified email is required before user discovery or chat; existing users retain login and receive a verification path. These gates are not yet implemented in the current development build.
+
+Messages and identities remain stored until an explicitly approved deletion process; no automatic purge is authorized. Catch-up covers all retained history. Daily encrypted database backups with seven-day retention target RPO <=24 hours and RTO <=4 hours. These objectives require measured backup/restore evidence before deployment. Database-disaster restoration may lose messages after the backup cutoff and is distinct from the no-loss guarantee for one application instance failing with shared storage available.
+
+Malformed recovery cursors must fail explicitly; ahead-of-head or history that cannot satisfy a cursor must not appear successfully synchronized. Restoration invalidates old recovery positions, and clients must rebuild from retained canonical history. Specific error/reset contracts and the current implementation gaps are recorded in [recovery boundaries](docs/architecture.md) and [database policy](docs/database.md); their implementation is required before release. Any future deletion must preserve the ordering/retry contract or explicitly invalidate affected recovery positions.
+
 ## 6. Core user journeys
 
 ### 6.1 Live conversation

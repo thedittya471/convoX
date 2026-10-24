@@ -6,7 +6,7 @@ convoX focuses on reliable delivery across instances, shared presence and typing
 
 ## Project status
 
-The development foundation includes Next.js, Express, Better Auth email/password authentication with PostgreSQL-backed sessions, signup/login screens, backend user discovery, direct-conversation and durable message APIs, Drizzle migrations, shared contracts, checks, and a local three-instance Docker stack. Message storage supports duplicate-safe retries, ordered history and transactional outbox publishing through authenticated, cross-instance WebSockets. A standalone client module provides ordered catch-up and a persistent local send queue; it is not connected to the account UI yet. End-to-end encryption, multi-device key recovery, a chat UI, presence, typing and delivery metrics are not implemented. Email verification and password-reset delivery are not configured. The capabilities and performance figures below remain release requirements, not verified results.
+The development foundation includes Next.js, Express, Better Auth email/password authentication with PostgreSQL-backed sessions, signup/login screens, backend user discovery, direct-conversation and durable message APIs, Drizzle migrations, shared contracts, checks, and a local three-instance Docker stack. Message storage supports duplicate-safe retries, ordered history and transactional outbox publishing through authenticated, cross-instance WebSockets. A standalone client module provides ordered catch-up and a persistent local send queue; it is not connected to the account UI yet. A chat UI, presence, typing and delivery metrics are not implemented. The owner approved TLS-protected, server-readable messages for the first release; end-to-end encryption and multi-device key recovery are outside that release. Email verification and password-reset delivery are not configured. The capabilities and performance figures below remain release requirements, not verified results.
 
 ## Release scope
 
@@ -19,7 +19,15 @@ The development foundation includes Next.js, Express, Better Auth email/password
 - Automatic reconnection to a healthy instance and recovery of missed messages.
 - Per-instance connection counts, message throughput, and delivery latency.
 
-Client-side end-to-end encryption and multi-device support are planned for the custom chat implementation. Group chat, attachments, message editing/deletion, search, read receipts, push notifications, native mobile apps and multi-region deployment are outside this release.
+The first release uses HTTPS/WSS in deployment and server-readable message storage. Operators with appropriate database access can read message content; this is not end-to-end encryption. Simultaneous tabs/devices use the existing authenticated delivery model; cryptographic device linking and key recovery are excluded. Group chat, attachments, message editing/deletion, search, read receipts, push notifications, native mobile apps and multi-region deployment are outside this release.
+
+### Approved release policies (2026-10-24)
+
+The owner approved exact-username discovery, editable usernames with normalization/uniqueness checks, and verified email before discovery or chat. Existing users retain login and receive a verification path. **Verification gating and browser username controls are release requirements, not current behavior.** The current development APIs still accept unverified sessions.
+
+Retain messages and identities until an explicitly approved deletion process; no automatic purge is authorized. Support catch-up over all retained history, without promising infinite storage or availability. The approved backup targets are daily encrypted database backups, seven-day backup retention, recovery-point objective (RPO) of 24 hours and recovery-time objective (RTO) of four hours. These are unimplemented/unproven targets until the backup/restore task passes. Restoring a backup can lose data newer than its cutoff; the single-application-instance durability guarantee does not cover that disaster scenario.
+
+See [recovery boundaries](docs/architecture.md), [database lifecycle policy](docs/database.md), and [baseline evidence](docs/test-report.md). Deployment host, email provider/cost and operational access remain decisions for their implementation tasks. No public release is authorized by these policy choices.
 
 ## Reliability contract
 
@@ -120,7 +128,7 @@ Review generated SQL in `apps/server/drizzle/`. Run migrations once per deployme
 pnpm check
 ```
 
-This builds all packages, checks types, lints each package, and runs the shared health/username/conversation contract tests. Server unit tests are not included. The Docker smoke check verifies runtime health across all three backend instances and graceful shutdown/restart. CI runs these checks on Node 24.
+This builds all packages, checks types, lints each package, and runs shared health/username/conversation/message contract tests plus client synchronization unit tests. Server unit tests are not included. The Docker smoke check verifies runtime health across all three backend instances and graceful shutdown/restart. CI runs these checks on Node 24.
 
 ### Authentication
 
@@ -210,8 +218,8 @@ Both endpoints require an active session and restrict access to conversation par
 
 Clients may send `X-Expected-User-Id` on either message endpoint. A mismatch with the authenticated session returns `403`, preventing an old tab from sending or loading another account's messages after its cookie changes. The header is an identity assertion to check, never an authentication credential; existing callers without it keep the same behavior.
 
-- `POST /api/conversations/:id/messages` accepts only `{ "clientMessageId": "<UUID>", "encryptedPayload": "<opaque client envelope>" }`. Payloads contain 1–8,192 characters and remain subject to the existing 16 KB HTTP body limit. The server does not encrypt, decrypt or verify that an envelope is actually encrypted; this storage API is not a completed E2EE implementation. Do not send real plaintext messages or private encryption keys.
-- A new send returns `201`; an identical retry returns `200` with the original message and timestamp. The client must persist and reuse the same UUID and identical envelope for retries, not re-encrypt on each attempt. Reusing a sender's UUID with different content or another conversation returns `409`. IDs are scoped to the authenticated sender, not the server instance.
+- `POST /api/conversations/:id/messages` accepts only `{ "clientMessageId": "<UUID>", "encryptedPayload": "<message text; legacy field name>" }`. Payloads contain 1–8,192 characters and remain subject to the existing 16 KB HTTP body limit. The server stores the supplied string without cryptographic processing. Following the approved first-release policy, `encryptedPayload` is a legacy field name: release text will be stored verbatim in this field and remains readable by the service. The field name does not imply encryption. Keep the existing request/response shape and limits for compatibility; no ciphertext conversion, database rewrite or encryption keys are introduced. Existing opaque records remain unchanged and must not be automatically presented as successfully decoded text. Public use requires the remaining release gates, including HTTPS/WSS and verification/abuse controls.
+- A new send returns `201`; an identical retry returns `200` with the original message and timestamp. The client must persist and reuse the same UUID and identical payload string for retries. Reusing a sender's UUID with different content or another conversation returns `409`. IDs are scoped to the authenticated sender, not the server instance.
 - The message, conversation counter and one outbox entry commit together before success is returned. Sends lock only their conversation row to allocate commit-ordered sequences. Failed transactions do not consume sequences. PostgreSQL uniqueness enforces duplicate prevention across instances. Each instance runs an outbox publisher; saving a message does not mean it was delivered to a recipient.
 - `GET /api/conversations/:id/messages?after=0&limit=20` returns `{ "messages": [...], "nextAfter": "<sequence>" | null }`, oldest first. `after` is exclusive and defaults to `0`; `limit` defaults to `20` and is capped at `100`. Sequences are decimal strings to preserve PostgreSQL bigint precision. When `nextAfter` is non-null, use it for the next page. Once caught up, retain the last received message's sequence for future catch-up; an empty page must not reset it. Concurrent later sends may appear on subsequent pages. No message purge is configured.
 
@@ -232,7 +240,7 @@ Run `pnpm test:realtime` from the host after starting the stack and applying mig
 
 ### Client synchronization
 
-`apps/web/src/lib/chat-client.ts` owns one conversation's socket, catch-up cursor and send retries. `message-outbox.ts` stores supplied opaque envelopes and retry metadata in IndexedDB. Callers must provide encrypted envelopes, never session tokens, real plaintext or encryption keys; this module does not implement or verify encryption. Invoke the client inside a client component's lifecycle, not during server rendering:
+`apps/web/src/lib/chat-client.ts` owns one conversation's socket, catch-up cursor and send retries. `message-outbox.ts` stores supplied opaque envelopes and retry metadata in IndexedDB. The approved first-release contract permits server-readable text in the legacy `encryptedPayload` string. The module preserves the exact supplied string across retries and does not encrypt it. Never queue session tokens or private keys. Existing synthetic opaque envelopes remain valid transport inputs; no historical content is rewritten. Invoke the client inside a client component's lifecycle, not during server rendering:
 
 ```ts
 const client = createChatClient({
@@ -243,7 +251,7 @@ const client = createChatClient({
 });
 
 await client.start();
-const clientMessageId = await client.send(encryptedEnvelope);
+const clientMessageId = await client.send(messageText); // Stored server-readable; production transport requires TLS.
 ```
 
 - `start()` loads saved pending sends and connects. `send()` resolves with the stable UUID only after the local transaction commits; it does not promise server acceptance. The module retries the exact stored UUID/envelope after network errors or lost responses. A `400`/`404`/`409` or another permanent client error stays in `state.pending` with an error; `retry(clientMessageId)` explicitly retries the same entry. It never silently discards a failed send or generates a new envelope for a retry.
@@ -259,7 +267,7 @@ Unit tests run through `pnpm --filter @convox/web test` and `pnpm check`. `pnpm 
 
 ### Next implementation steps
 
-Next implement shared presence, typing, per-instance metrics and load qualification. Wire the tested client into a chat UI with suitable history pagination rather than loading an unlimited backlog into React state. Validate a maintained, browser-compatible encryption implementation and prove multi-device linking, revocation and key recovery before handling real private messages. Encryption and decryption must remain client-side; indefinite ciphertext retention alone does not guarantee recoverable history. Group storage, management and large-group policies remain separate work.
+Next implement shared presence, typing, per-instance metrics and load qualification. Wire the tested client into a chat UI with suitable history pagination rather than loading an unlimited backlog into React state. Implement the approved server-readable text UI without claiming E2EE. Client-side encryption, cryptographic device linking and key recovery require a separate future scope decision. Group storage, management and large-group policies remain separate work.
 
 ## Documentation
 
