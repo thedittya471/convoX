@@ -152,3 +152,9 @@ Added the connection-owned Redis lease decision and bounded watch/snapshot schem
 ## Task 20B: account HTTP limits
 
 `pnpm check` passed (50 units). Sequential `pnpm test:limits`, `pnpm test:auth` (including password recovery), `pnpm test:conversations`, and `pnpm test:messages` all passed in the isolated three-replica stack. The limit suite seeds only synthetic near-full buckets, races requests across replicas and source addresses for each account operation, verifies exactly two allowed/four rejected, checks independent accounts and shared list/history read quotas, and proves rejected sends create no rows. A previously accepted client ID is blocked while exhausted and returns the same canonical ID after refill. Conversation regression now expects approved shared quotas instead of the former unrestricted-open behavior. Limits use existing PostgreSQL storage; Redis failures retain durable HTTP acceptance. Client Retry-After pacing follows as the final slice.
+
+## Task 20C: retry pacing and final checkpoint
+
+Final `pnpm check` passed: build, types, lint and 51 unit tests (11 contracts + 40 web). A fake-clock assertion proves a 429 with Retry-After pauses both automatic and manual synchronization, keeps the original pending UUID, and accepts exactly one canonical row after the deadline. The final `pnpm test:client-sync` passed with account/IP quotas enabled, including bidirectional typing/presence and durable failover/recovery. The durable client also respects numeric Retry-After on 503.
+
+Task 14 remains pending actual browser qualification; Tasks 15–20 are implemented with script evidence above. No browser, capacity/load, production SMTP or public deployment qualification is claimed. Presence polling/database revalidation cost and shared-IP thresholds require the later release load tests. No new dependency or database migration was introduced for Tasks 15–20.

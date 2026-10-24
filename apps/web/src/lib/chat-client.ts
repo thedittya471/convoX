@@ -69,6 +69,7 @@ export function createChatClient(options: ChatOptions) {
   let interval: ReturnType<typeof setInterval> | undefined;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let retryDelay = 500;
+  let retryAt = 0;
 
   function getState(): ChatState {
 
@@ -165,7 +166,7 @@ export function createChatClient(options: ChatOptions) {
       retryTimer = undefined;
       if (!socket.connected && !socket.active) socket.connect();
       void synchronize();
-    }, retryDelay + Math.random() * 200);
+    }, Math.max(retryDelay + Math.random() * 200, retryAt - Date.now()));
     retryDelay = Math.min(retryDelay * 2, 8000);
   }
 
@@ -176,6 +177,10 @@ export function createChatClient(options: ChatOptions) {
       headers: { ...init.headers, "X-Expected-User-Id": userId, ...(generation ? { "X-History-Generation": generation } : {}) },
       signal: AbortSignal.any([controller.signal, AbortSignal.timeout(5000)]),
     });
+    if ([429, 503].includes(response.status)) {
+      const seconds = Number(response.headers.get("Retry-After"));
+      if (Number.isFinite(seconds) && seconds > 0) retryAt = Math.max(retryAt, Date.now() + Math.min(seconds, 3600) * 1000);
+    }
     if (!stopped && [401, 403].includes(response.status)) requireAuth();
     return response;
   }
@@ -267,6 +272,7 @@ export function createChatClient(options: ChatOptions) {
   function flushPending(): Promise<void> {
 
     sendRequested = true;
+    if (Date.now() < retryAt) { retryLater(); return Promise.resolve(); }
     if (sendingTask || stopped || unauthorized || halted || !ready) return sendingTask ?? Promise.resolve();
 
     sendingTask = (async () => {
@@ -307,7 +313,7 @@ export function createChatClient(options: ChatOptions) {
       notify();
     })().catch(() => {
       if (!stopped && !unauthorized && !halted) {
-        notify("error", "Connection interrupted. Pending sends remain saved on this device.");
+        notify("error", Date.now() < retryAt ? "The server requested a pause. Pending sends remain saved and will retry after the indicated delay." : "Connection interrupted. Pending sends remain saved on this device.");
         retryLater();
       }
     }).finally(() => {
@@ -319,6 +325,7 @@ export function createChatClient(options: ChatOptions) {
 
   async function synchronize() {
 
+    if (Date.now() < retryAt) { retryLater(); return; }
     if (retryTimer) clearTimeout(retryTimer);
     retryTimer = undefined;
     await synchronizeHistory();

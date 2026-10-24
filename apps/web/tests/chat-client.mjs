@@ -25,8 +25,8 @@ class TestSocket extends EventEmitter {
 }
 
 async function until(check) {
-  const deadline = Date.now() + 5000;
-  while (Date.now() < deadline) {
+  const deadline = performance.now() + 5000;
+  while (performance.now() < deadline) {
     if (await check()) return;
     await sleep(10);
   }
@@ -43,6 +43,7 @@ function fixture() {
   let failAfterCommit = false;
   let offline = false;
   let status = 200;
+  let retryAfter;
   let intercept;
 
   function message(sequence, values = {}) {
@@ -52,7 +53,7 @@ function fixture() {
   async function request(input, options) {
     assert.equal(new Headers(options.headers).get("X-Expected-User-Id"), userId);
     if (offline) throw new TypeError("Synthetic network interruption");
-    if (status !== 200) return Response.json({ error: "Synthetic failure" }, { status });
+    if (status !== 200) return Response.json({ error: "Synthetic failure" }, { status, ...(retryAfter ? { headers: { "Retry-After": String(retryAfter) } } : {}) });
     if (options.method === "POST") {
       const body = JSON.parse(options.body);
       attempts.push(body);
@@ -75,10 +76,10 @@ function fixture() {
     });
   }
 
-  return { userId, conversationId, socket, rows, received, attempts, message, client,
+  return { request, userId, conversationId, socket, rows, received, attempts, message, client,
     offline: (value) => { offline = value; },
     failAfterCommit: () => { failAfterCommit = true; },
-    status: (value) => { status = value; },
+    status: (value, delay) => { status = value; retryAfter = delay; },
     intercept: (value) => { intercept = value; },
   };
 }
@@ -562,4 +563,31 @@ test("inactive composer stops typing and disconnect clears incoming state", asyn
     assert.equal(client.getState().typing, false);
     context.mock.timers.reset();
   } finally { await client.stop(); }
+});
+
+
+test("Retry-After pauses HTTP retries while preserving the original pending ID", async (context) => {
+  const setup = fixture();
+  let calls = 0;
+  const client = setup.client({ request: (...args) => { calls++; return setup.request(...args); } });
+  try {
+    await client.start();
+    await until(() => client.getState().status === "connected");
+    context.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+    setup.status(429, 10);
+    const id = await client.send("wait for shared quota refill");
+    await until(() => client.getState().status === "error");
+    const paused = calls;
+    setup.status(200);
+    await client.synchronize();
+    assert.equal(calls, paused, "manual synchronization must also respect the server delay");
+    context.mock.timers.tick(9999);
+    await sleep(10);
+    assert.equal(calls, paused);
+    assert.equal(client.getState().pending[0].clientMessageId, id);
+    context.mock.timers.tick(1);
+    await until(() => client.getState().pending.length === 0);
+    assert.equal(setup.attempts[0].clientMessageId, id);
+    assert.equal(setup.rows.length, 1);
+  } finally { await client.stop(); context.mock.timers.reset(); }
 });
