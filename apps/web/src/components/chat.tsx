@@ -11,6 +11,7 @@ import { loadPendingMessages, type PendingMessage } from "@/lib/message-outbox";
 export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
   userId: string; conversationId: string; peerName: string; onAuthRequired: () => void;
 }) {
+  const [typing, setTyping] = useState(false);
   const [presence, setPresence] = useState<ChatState["presence"]>("unavailable");
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState("");
@@ -72,6 +73,7 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
           },
           onChange: (state: ChatState) => {
             if (controller.signal.aborted) return;
+            setTyping(state.typing);
             setPresence(state.presence);
             setPending(state.pending);
             setStatus(state.status);
@@ -113,6 +115,12 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
     return () => { controller.abort(); void current?.stop(); };
   }, [userId, conversationId, attempt, onAuthRequired]);
 
+  useEffect(() => {
+    function stopWhenHidden() { if (document.hidden) client.current?.setTyping(false); }
+    document.addEventListener("visibilitychange", stopWhenHidden);
+    return () => document.removeEventListener("visibilitychange", stopWhenHidden);
+  }, []);
+
   useLayoutEffect(() => {
     if (!anchor.current || !viewport.current) return;
     const row = viewport.current.querySelector<HTMLElement>(`[data-message-id="${anchor.current.id}"]`);
@@ -125,6 +133,7 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
     void client.current?.stop();
     browsingOlder.current = false;
     anchor.current = null;
+    setTyping(false);
     setPresence("unavailable");
     setStatus("loading");
     setCanSend(false); setSendError("");
@@ -153,6 +162,7 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
 
   async function sendDraft() {
     if (!canSend || !client.current || submitting.current) return;
+    client.current.setTyping(false);
     if (!draft.trim() || !createMessageSchema.shape.encryptedPayload.safeParse(draft).success) {
       setSendError("Enter a message of up to 8,192 characters.");
       return;
@@ -185,6 +195,7 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
   return <section aria-label={`Messages with ${peerName}`}>
     <ChatStatus status={status} />
     <p role="status" aria-live="polite" aria-atomic="true">{peerName}: {presence === "unavailable" ? "presence unavailable" : presence}. Presence does not confirm reading or receipt.</p>
+    <p role="status" aria-live="polite" aria-atomic="true">{typing ? `${peerName} is typing…` : ""}</p>
     {loading && status !== "loading" && <p>Loading older messages…</p>}
     {error && <p className="form-error">{error}</p>}
     {!unavailable && <button type="button" className="primary-button" disabled={loading || saving || retrying !== null} onClick={reload}>{reset ? "Reload history" : newMessages ? "View new messages" : "Return to recent messages"}</button>}
@@ -212,7 +223,8 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
       <div className="form-field">
       <label htmlFor="message-draft">Message to {peerName}</label>
       <textarea id="message-draft" value={draft} maxLength={16384} required readOnly={saving}
-        aria-describedby="message-help message-send-error" onChange={(event) => setDraft(event.target.value)}
+        aria-describedby="message-help message-send-error" onBlur={() => client.current?.setTyping(false)}
+        onChange={(event) => { setDraft(event.target.value); client.current?.setTyping(Boolean(event.target.value.trim())); }}
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault(); event.currentTarget.form?.requestSubmit();

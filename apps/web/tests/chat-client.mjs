@@ -515,3 +515,51 @@ test("presence becomes unavailable when activity snapshots stop arriving", async
     assert.equal(client.getState().presence, "unavailable");
   } finally { await client.stop(); context.mock.timers.reset(); }
 });
+
+test("typing is throttled, stops on send/cleanup, and expires locally without a stop event", async (context) => {
+  const setup = fixture();
+  const commands = [];
+  setup.socket.on("typing:set", (value) => commands.push(value));
+  const client = setup.client();
+  try {
+    await client.start();
+    await until(() => client.getState().status === "connected");
+    client.setTyping(true); client.setTyping(true); client.setTyping(true);
+    assert.deepEqual(commands, [{ conversationId: setup.conversationId, active: true }]);
+    await client.send("typing stops before sending");
+    assert.equal(commands.at(-1).active, false);
+    context.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+    setup.socket.emit("typing:changed", { conversationId: randomUUID(), expiresInMs: 500 });
+    assert.equal(client.getState().typing, false);
+    setup.socket.emit("typing:changed", { conversationId: setup.conversationId, expiresInMs: 500 });
+    assert.equal(client.getState().typing, true);
+    context.mock.timers.tick(2501);
+    assert.equal(client.getState().typing, false, "lost stop cannot leave stale typing");
+    client.setTyping(true);
+    assert.equal(commands.at(-1).active, true);
+    await client.stop();
+    assert.equal(commands.at(-1).active, false);
+    assert.equal(setup.socket.listenerCount("typing:changed"), 0);
+    setup.socket.emit("typing:changed", { conversationId: setup.conversationId, expiresInMs: 6000 });
+    assert.equal(client.getState().typing, false);
+  } finally { await client.stop(); context.mock.timers.reset(); }
+});
+
+test("inactive composer stops typing and disconnect clears incoming state", async (context) => {
+  const setup = fixture();
+  const commands = [];
+  setup.socket.on("typing:set", (value) => commands.push(value));
+  const client = setup.client();
+  try {
+    await client.start();
+    await until(() => client.getState().status === "connected");
+    context.mock.timers.enable({ apis: ["setTimeout"] });
+    client.setTyping(true);
+    context.mock.timers.tick(6001);
+    assert.equal(commands.at(-1).active, false);
+    setup.socket.emit("typing:changed", { conversationId: setup.conversationId, expiresInMs: 6000 });
+    setup.socket.disconnect();
+    assert.equal(client.getState().typing, false);
+    context.mock.timers.reset();
+  } finally { await client.stop(); }
+});

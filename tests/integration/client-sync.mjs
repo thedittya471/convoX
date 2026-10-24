@@ -49,6 +49,7 @@ async function run() {
   const emails = [0, 1].map((index) => `client-sync-${suffix}-${index}@example.com`);
   const actors = [];
   const clients = [];
+  let peerSocket;
   const originalGeneration = (await pool.query("SELECT generation FROM history")).rows[0].generation;
   const received = new Map();
   const sentBodies = [];
@@ -134,6 +135,23 @@ async function run() {
     releaseHistory();
     await until(() => current.getState().cursor === "2");
 
+    peerSocket = io("http://server-3:4000", { transports: ["websocket"], autoConnect: false, reconnection: false, extraHeaders: { cookie: bob.cookie, origin } });
+    let peerPresence, peerTyping = 0;
+    peerSocket.on("realtime:ready", () => peerSocket.emit("activity:watch", { conversationId }));
+    peerSocket.on("presence:changed", (value) => { peerPresence = value.state; });
+    peerSocket.on("typing:changed", (value) => { peerTyping = value.expiresInMs; });
+    peerSocket.connect();
+    await until(() => peerPresence === "online" && current.getState().presence === "online");
+    current.setTyping(true);
+    await until(() => peerTyping > 0);
+    current.setTyping(false);
+    await until(() => peerTyping === 0);
+    peerSocket.emit("typing:set", { conversationId, active: true });
+    await until(() => current.getState().typing);
+    peerSocket.emit("typing:set", { conversationId, active: false });
+    await until(() => !current.getState().typing);
+    peerSocket.disconnect();
+
     loseResponse = true;
     const clientMessageId = await current.send("opaque-retry-envelope");
     await until(() => sentBodies.length === 1);
@@ -212,8 +230,9 @@ async function run() {
     await until(() => current.getState().status === "connected");
     assert.ok(current.getState().pending.some((row) => row.clientMessageId === switched));
     assert.equal((await pool.query("SELECT id FROM message WHERE client_message_id = $1", [switched])).rowCount, 0, "rebuilding history must not recreate queued or previously accepted messages");
-    console.log("Client sync integration passed: buffered catch-up, durable identical retries, gateway failover, gap-free ordered recovery and account-switch protection, independent view cleanup, generation invalidation and explicit bootstrap with preserved pending sends.");
+    console.log("Client sync integration passed: buffered catch-up, durable identical retries, gateway failover, gap-free ordered recovery and account-switch protection, independent view cleanup, bidirectional typing/presence, generation invalidation and explicit bootstrap with preserved pending sends.");
   } finally {
+    peerSocket?.disconnect();
     releaseHistory?.();
     await Promise.all(clients.map((client) => client.stop()));
     process.stdin.pause();

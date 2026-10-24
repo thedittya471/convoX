@@ -1,9 +1,10 @@
 import { io, type Socket } from "socket.io-client";
-import { activityTiming, presenceSnapshotSchema, type PresenceSnapshot, type ActivityCommands, conversationSchema, createMessageSchema, messageSchema, messageResponseSchema, messageListResponseSchema, messageSequenceSchema, messageHistoryErrorSchema, type Message, type RealtimeEvents } from "@convox/contracts";
+import { activityTiming, typingSnapshotSchema, type TypingSnapshot, presenceSnapshotSchema, type PresenceSnapshot, type ActivityCommands, conversationSchema, createMessageSchema, messageSchema, messageResponseSchema, messageListResponseSchema, messageSequenceSchema, messageHistoryErrorSchema, type Message, type RealtimeEvents } from "@convox/contracts";
 import { loadPendingMessages, savePendingMessage, removePendingMessage, type PendingMessage } from "./message-outbox";
 
 export type ChatState = {
   status: "connecting" | "syncing" | "connected" | "reconnecting" | "unauthenticated" | "error" | "recovery-required" | "unavailable" | "stopped";
+  typing: boolean;
   presence: PresenceSnapshot["state"];
   cursor: string;
   generation: string | null;
@@ -47,6 +48,11 @@ export function createChatClient(options: ChatOptions) {
   let highest = cursor;
   let status: ChatState["status"] = "connecting";
   let error: string | null = null;
+  let typing = false;
+  let sendingTyping = false;
+  let lastTypingSent = 0;
+  let typingTimer: ReturnType<typeof setTimeout> | undefined;
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
   let presence: PresenceSnapshot["state"] = "unavailable";
   let presenceTimer: ReturnType<typeof setTimeout> | undefined;
   let pending: PendingMessage[] = [];
@@ -66,7 +72,7 @@ export function createChatClient(options: ChatOptions) {
 
   function getState(): ChatState {
 
-    return { status, presence, cursor: cursor.toString(), generation: generation ?? null, pending: pending.map((entry) => ({ ...entry })), error };
+    return { status, typing, presence, cursor: cursor.toString(), generation: generation ?? null, pending: pending.map((entry) => ({ ...entry })), error };
   }
 
   function notify(nextStatus = status, nextError: string | null = error) {
@@ -77,7 +83,41 @@ export function createChatClient(options: ChatOptions) {
     options.onChange?.(getState());
   }
 
+  function clearTyping() {
+    if (typingTimer) clearTimeout(typingTimer);
+    if (idleTimer) clearTimeout(idleTimer);
+    typingTimer = undefined;
+    idleTimer = undefined;
+    typing = false;
+    sendingTyping = false;
+    lastTypingSent = 0;
+  }
+
+  function setTyping(active: boolean) {
+    if (stopped || unauthorized || halted || !ready) return;
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = undefined;
+    if (active) {
+      idleTimer = setTimeout(() => setTyping(false), activityTiming.typingMs);
+      if (Date.now() - lastTypingSent < activityTiming.typingThrottleMs) return;
+      lastTypingSent = Date.now();
+    } else if (!sendingTyping) return;
+    sendingTyping = active;
+    socket.emit("typing:set", { conversationId, active });
+  }
+
+  function onTyping(value: TypingSnapshot) {
+    if (stopped || unauthorized || halted || !ready) return;
+    const parsed = typingSnapshotSchema.safeParse(value);
+    if (!parsed.success || parsed.data.conversationId !== conversationId) return;
+    if (typingTimer) clearTimeout(typingTimer);
+    typing = parsed.data.expiresInMs > 0;
+    if (typing) typingTimer = setTimeout(() => { typing = false; notify(); }, parsed.data.expiresInMs);
+    notify();
+  }
+
   function clearPresence() {
+    clearTyping();
     if (presenceTimer) clearTimeout(presenceTimer);
     presenceTimer = undefined;
     presence = "unavailable";
@@ -338,6 +378,7 @@ export function createChatClient(options: ChatOptions) {
       socket.on("realtime:ready", onReady);
       socket.on("message:created", onMessage);
       socket.on("presence:changed", onPresence);
+      socket.on("typing:changed", onTyping);
       socket.on("sync:required", synchronize);
       socket.on("auth:required", requireAuth);
       socket.on("disconnect", onDisconnect);
@@ -350,6 +391,8 @@ export function createChatClient(options: ChatOptions) {
   }
 
   async function send(encryptedPayload: string) {
+
+    setTyping(false);
 
     if (!starting || stopped || unauthorized || halted) throw new Error("Start an authenticated client before sending.");
     await starting;
@@ -383,6 +426,7 @@ export function createChatClient(options: ChatOptions) {
 
   async function stop() {
 
+    setTyping(false);
     clearPresence();
     stopped = true;
     ready = false;
@@ -392,6 +436,7 @@ export function createChatClient(options: ChatOptions) {
     socket.off("realtime:ready", onReady);
     socket.off("message:created", onMessage);
     socket.off("presence:changed", onPresence);
+    socket.off("typing:changed", onTyping);
     socket.off("sync:required", synchronize);
     socket.off("auth:required", requireAuth);
     socket.off("disconnect", onDisconnect);
@@ -402,5 +447,5 @@ export function createChatClient(options: ChatOptions) {
     status = "stopped";
   }
 
-  return { start, stop, send, retry, synchronize, getState };
+  return { start, stop, send, retry, synchronize, getState, setTyping };
 }
