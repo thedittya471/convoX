@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Conversation } from "@convox/contracts";
+import { Chat } from "./chat";
 import { StartConversation } from "./start-conversation";
 import { loadConversations, mergeConversations } from "@/lib/conversation-list";
 import { ConversationLookupError } from "@/lib/open-conversation";
@@ -85,7 +86,7 @@ export function Conversations({ userId }: { userId: string }) {
           <h2 id="conversation-heading" ref={detailHeading} tabIndex={-1}>{selected ? selected.peer.name : "Choose a conversation"}</h2>
           {selected ? <>
             <p>{selected.peer.username ? `@${selected.peer.username}` : "This participant has not chosen a username."}</p>
-            <p>Message history and sending are not available yet.</p>
+            <Chat key={`${userId}:${selected.id}`} userId={userId} conversationId={selected.id} peerName={selected.peer.name} onAuthRequired={leaveChat} />
             <button className="primary-button" type="button" onClick={() => { setSelected(null); listHeading.current?.focus(); }}>Back to conversations</button>
           </> : <p>Select a participant from the list or find someone above.</p>}
         </section>

@@ -1,10 +1,11 @@
 import { io, type Socket } from "socket.io-client";
-import { conversationSchema, createMessageSchema, messageSchema, messageResponseSchema, messageListResponseSchema, messageSequenceSchema, type Message, type RealtimeEvents } from "@convox/contracts";
+import { conversationSchema, createMessageSchema, messageSchema, messageResponseSchema, messageListResponseSchema, messageSequenceSchema, messageHistoryErrorSchema, type Message, type RealtimeEvents } from "@convox/contracts";
 import { loadPendingMessages, savePendingMessage, removePendingMessage, type PendingMessage } from "./message-outbox";
 
 export type ChatState = {
-  status: "connecting" | "syncing" | "connected" | "reconnecting" | "unauthenticated" | "error" | "stopped";
+  status: "connecting" | "syncing" | "connected" | "reconnecting" | "unauthenticated" | "error" | "recovery-required" | "unavailable" | "stopped";
   cursor: string;
+  generation: string | null;
   pending: PendingMessage[];
   error: string | null;
 };
@@ -15,6 +16,8 @@ type ChatOptions = {
   onMessages: (messages: Message[]) => void;
   onChange?: (state: ChatState) => void;
   after?: string;
+  generation?: string;
+  resumePending?: boolean;
   apiUrl?: string;
   socketUrl?: string;
   socket?: Socket<RealtimeEvents, Record<string, never>>;
@@ -37,6 +40,9 @@ export function createChatClient(options: ChatOptions) {
   const controller = new AbortController();
   const buffer = new Map<string, Message>();
   let cursor = BigInt(messageSequenceSchema.parse(options.after ?? "0"));
+  let generation = options.generation ? conversationSchema.shape.id.parse(options.generation) : undefined;
+  if (cursor > BigInt(0) && !generation) throw new Error("A checkpoint requires its original history generation. Reload history.");
+  let halted = false;
   let highest = cursor;
   let status: ChatState["status"] = "connecting";
   let error: string | null = null;
@@ -57,7 +63,7 @@ export function createChatClient(options: ChatOptions) {
 
   function getState(): ChatState {
 
-    return { status, cursor: cursor.toString(), pending: pending.map((entry) => ({ ...entry })), error };
+    return { status, cursor: cursor.toString(), generation: generation ?? null, pending: pending.map((entry) => ({ ...entry })), error };
   }
 
   function notify(nextStatus = status, nextError: string | null = error) {
@@ -79,9 +85,21 @@ export function createChatClient(options: ChatOptions) {
     notify("unauthenticated", reason);
   }
 
+  function halt(next: "recovery-required" | "unavailable", reason: string) {
+    halted = true;
+    ready = false;
+    historyHealthy = false;
+    buffer.clear();
+    controller.abort();
+    socket.disconnect();
+    if (retryTimer) clearTimeout(retryTimer);
+    if (interval) clearInterval(interval);
+    notify(next, reason);
+  }
+
   function retryLater() {
 
-    if (stopped || unauthorized || retryTimer) return;
+    if (stopped || unauthorized || halted || retryTimer) return;
     retryTimer = setTimeout(() => {
       retryTimer = undefined;
       if (!socket.connected && !socket.active) socket.connect();
@@ -94,7 +112,7 @@ export function createChatClient(options: ChatOptions) {
 
     const response = await request(url, {
       ...init, credentials: "include", cache: "no-store",
-      headers: { ...init.headers, "X-Expected-User-Id": userId },
+      headers: { ...init.headers, "X-Expected-User-Id": userId, ...(generation ? { "X-History-Generation": generation } : {}) },
       signal: AbortSignal.any([controller.signal, AbortSignal.timeout(5000)]),
     });
     if (!stopped && [401, 403].includes(response.status)) requireAuth();
@@ -130,22 +148,30 @@ export function createChatClient(options: ChatOptions) {
   function synchronizeHistory(): Promise<void> {
 
     syncRequested = true;
-    if (syncingTask || stopped || unauthorized || !ready) return syncingTask ?? Promise.resolve();
+    if (syncingTask || stopped || unauthorized || halted || !ready) return syncingTask ?? Promise.resolve();
 
     syncingTask = (async () => {
       syncing = true;
       historyHealthy = false;
       notify("syncing", null);
-      while (syncRequested && !stopped && !unauthorized && ready) {
+      while (syncRequested && !stopped && !unauthorized && !halted && ready) {
         syncRequested = false;
         let more = true;
-        while (more && !stopped && !unauthorized && ready) {
+        while (more && !stopped && !unauthorized && !halted && ready) {
           const after = cursor;
-          const response = await api(`${path}?after=${after}&limit=100`);
-          if (stopped || unauthorized) return;
+          const response = await api(`${path}?after=${after}&limit=100${generation ? `&generation=${encodeURIComponent(generation)}` : ""}`);
+          if (stopped || unauthorized || halted) return;
+          if (response.status === 404) return halt("unavailable", "This conversation is no longer available.");
+          if ([409, 410].includes(response.status)) {
+            const failure = messageHistoryErrorSchema.parse(await response.json());
+            return halt("recovery-required", `${failure.error} Pending sends remain saved on this device.`);
+          }
           if (!response.ok) throw new Error("Could not load message history.");
-          const page = messageListResponseSchema.parse(await response.json());
-          if (stopped || unauthorized) return;
+          const body = await response.json();
+          if (generation && body.generation !== generation) return halt("recovery-required", "History changed. Reload history; pending sends remain saved.");
+          generation ??= body.generation;
+          const page = messageListResponseSchema.parse(body);
+          if (stopped || unauthorized || halted) return;
 
           let expected = after + BigInt(1);
           for (const message of page.messages) {
@@ -165,7 +191,7 @@ export function createChatClient(options: ChatOptions) {
       if (!pending.some((entry) => !entry.error)) retryDelay = 500;
       notify(ready ? "connected" : "reconnecting", null);
     })().catch(() => {
-      if (!stopped && !unauthorized) {
+      if (!stopped && !unauthorized && !halted) {
         notify("error", "Could not synchronize messages. Retrying from the last complete sequence.");
         retryLater();
       }
@@ -180,18 +206,23 @@ export function createChatClient(options: ChatOptions) {
   function flushPending(): Promise<void> {
 
     sendRequested = true;
-    if (sendingTask || stopped || unauthorized || !ready) return sendingTask ?? Promise.resolve();
+    if (sendingTask || stopped || unauthorized || halted || !ready) return sendingTask ?? Promise.resolve();
 
     sendingTask = (async () => {
-      while (sendRequested && !stopped && !unauthorized && ready) {
+      while (sendRequested && !stopped && !unauthorized && !halted && ready) {
         sendRequested = false;
         pending = await loadPendingMessages(userId, conversationId);
         for (const entry of pending) {
-          if (stopped || unauthorized || !ready) return;
+          if (stopped || unauthorized || halted || !ready) return;
           if (entry.error) continue;
+          if (generation && entry.generation !== generation) return halt("recovery-required", "Pending sends belong to an older or unknown history generation. Reload history and review them before resending.");
           const body = createMessageSchema.parse({ clientMessageId: entry.clientMessageId, encryptedPayload: entry.encryptedPayload });
           const response = await api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-          if (stopped || unauthorized) return;
+          if (stopped || unauthorized || halted) return;
+          if (response.status === 409) {
+            const failure = messageHistoryErrorSchema.safeParse(await response.clone().json());
+            if (failure.success) return halt("recovery-required", "History changed. Reload history; pending sends remain saved.");
+          }
           if (!response.ok) {
             if (response.status >= 400 && response.status < 500 && ![408, 425, 429].includes(response.status)) {
               await savePendingMessage({ ...entry, error: `Send rejected (${response.status}). Review this pending message before retrying.` });
@@ -200,7 +231,7 @@ export function createChatClient(options: ChatOptions) {
             throw new Error("Could not send the message.");
           }
           const saved = messageResponseSchema.parse(await response.json()).message;
-          if (stopped || unauthorized) return;
+          if (stopped || unauthorized || halted) return;
           if (saved.senderId !== userId || saved.clientMessageId !== entry.clientMessageId || saved.encryptedPayload !== entry.encryptedPayload) {
             throw new Error("Unexpected send acknowledgement.");
           }
@@ -214,7 +245,7 @@ export function createChatClient(options: ChatOptions) {
       if (historyHealthy) retryDelay = 500;
       notify();
     })().catch(() => {
-      if (!stopped && !unauthorized) {
+      if (!stopped && !unauthorized && !halted) {
         notify("error", "Connection interrupted. Pending sends remain saved on this device.");
         retryLater();
       }
@@ -229,25 +260,29 @@ export function createChatClient(options: ChatOptions) {
 
     if (retryTimer) clearTimeout(retryTimer);
     retryTimer = undefined;
-    await Promise.all([synchronizeHistory(), flushPending()]);
+    await synchronizeHistory();
+    if (historyHealthy && options.resumePending !== false) await flushPending();
   }
 
-  function onReady(value: { instanceId: string; userId: string }) {
+  function onReady(value: { instanceId: string; userId: string; generation?: string }) {
 
-    if (stopped || unauthorized) return;
+    if (stopped || unauthorized || halted) return;
     if (!value || value.userId !== userId) return requireAuth();
+    if (generation && value.generation !== generation) return halt("recovery-required", "History changed. Reload history; pending sends remain saved.");
+    generation ??= value.generation;
     ready = true;
     void synchronize();
   }
 
-  function onMessage(value: Message) {
+  function onMessage(value: Message, eventGeneration?: string) {
 
-    if (stopped || unauthorized || !ready) return;
+    if (stopped || unauthorized || halted || !ready) return;
+    if (generation && eventGeneration !== generation) return halt("recovery-required", "History changed. Reload history; pending sends remain saved.");
     const parsed = messageSchema.safeParse(value);
     if (!parsed.success || parsed.data.conversationId !== conversationId) return;
     try {
       merge(parsed.data);
-      if (!syncing) emitContiguous();
+      if (!syncing && historyHealthy) emitContiguous();
       if (!syncing && cursor < highest) void synchronizeHistory();
     } catch {
       notify("error", "Could not apply incoming messages. Retrying from the last complete sequence.");
@@ -258,7 +293,8 @@ export function createChatClient(options: ChatOptions) {
   function onDisconnect() {
 
     ready = false;
-    if (stopped || unauthorized) return;
+    historyHealthy = false;
+    if (stopped || unauthorized || halted) return;
     notify("reconnecting");
     retryLater();
   }
@@ -291,10 +327,11 @@ export function createChatClient(options: ChatOptions) {
 
   async function send(encryptedPayload: string) {
 
-    if (!starting || stopped || unauthorized) throw new Error("Start an authenticated client before sending.");
+    if (!starting || stopped || unauthorized || halted) throw new Error("Start an authenticated client before sending.");
     await starting;
+    if (!generation) throw new Error("Wait for history to synchronize before sending the first message.");
     const envelope = createMessageSchema.parse({ clientMessageId: crypto.randomUUID(), encryptedPayload });
-    await savePendingMessage({ ...envelope, userId, conversationId, error: null });
+    await savePendingMessage({ ...envelope, userId, conversationId, error: null, ...(generation ? { generation } : {}) });
     pending = await loadPendingMessages(userId, conversationId);
     notify();
     void flushPending();
@@ -303,7 +340,7 @@ export function createChatClient(options: ChatOptions) {
 
   async function retry(clientMessageId: string) {
 
-    if (!starting || stopped || unauthorized) throw new Error("Start an authenticated client before retrying.");
+    if (!starting || stopped || unauthorized || halted) throw new Error("Start an authenticated client before retrying.");
     await starting;
     const rows = await loadPendingMessages(userId, conversationId);
     const entry = rows.find((row) => row.clientMessageId === clientMessageId);

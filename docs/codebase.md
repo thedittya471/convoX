@@ -35,7 +35,8 @@ Start with the request flow below. The project has one Express backend, one Next
 2. The conversation router selects `sendMessage`. The controller calls `getVerifiedSession`, checks account/origin and validates the request with the shared schema.
 3. `createMessage` locks the conversation row and checks participation. One transaction saves the message, advances its sequence and inserts a delivery-outbox row. A retry with the same ID/content returns the existing message.
 4. The outbox publisher claims a row and publishes through Socket.IO/Redis. Each backend rechecks recipient sessions before local delivery. Publication can repeat after failure.
-5. The client merges history and live messages by sequence. It advances the cursor only after its consumer accepts a contiguous batch. PostgreSQL history fills gaps; Redis is not the history store.
+5. The history UI loads 50 recent messages and joins live catch-up using that applied page’s head/generation. Older paging preserves a visible row anchor and trims the rendered window to 200 entries; while browsing older history, new messages are announced through a return-to-recent button.
+6. The client merges history and live messages by sequence. It advances the cursor only after its consumer accepts a contiguous batch. PostgreSQL history fills gaps; Redis is not the history store.
 
 Keep transaction boundaries, duplicate handling, authorization and cursor ordering intact when refactoring. The recovery gaps and approved release decisions are documented in [architecture.md](architecture.md).
 
@@ -52,3 +53,5 @@ Run `pnpm check` from the repository root for production builds, TypeScript, lin
 Server integration tests in `tests/integration/` exercise real PostgreSQL, Redis, replicas and captured SMTP. Use a fresh disposable Compose project and the isolation procedure in [test-report.md](test-report.md), especially for tests that kill/restart services. Run smoke, auth, conversations, messages, realtime and client-sync in sequence. SMTP outage tests deliberately stop Mailpit and must restore it afterward.
 
 Do not edit assertions to accommodate a refactor. A changed public field, status, callback, retry order or data lifecycle needs its own behavior change and verification.
+
+History restoration uses the singleton `history.generation`, migration 0006 and the fenced operator procedure in [operations.md](operations.md). Checkpoints and pending queues retain their original generation. Explicit reset/unavailable responses stop synchronization and preserve pending IDs/content; history reload does not automatically resend them.

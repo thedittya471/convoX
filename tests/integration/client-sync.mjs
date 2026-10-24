@@ -49,6 +49,7 @@ async function run() {
   const emails = [0, 1].map((index) => `client-sync-${suffix}-${index}@example.com`);
   const actors = [];
   const clients = [];
+  const originalGeneration = (await pool.query("SELECT generation FROM history")).rows[0].generation;
   const received = new Map();
   const sentBodies = [];
   let current;
@@ -111,10 +112,11 @@ async function run() {
       return response;
     }
 
-    function createClient(after = "0") {
+    let generation = (await pool.query("SELECT generation FROM history")).rows[0].generation;
+    function createClient(after = "0", overrides = {}) {
       const socket = io("http://nginx", { transports: ["websocket"], autoConnect: false, extraHeaders: { cookie: alice.cookie, origin }, reconnectionDelay: 250, reconnectionDelayMax: 1000, timeout: 2000 });
       socket.on("realtime:ready", (value) => { activeInstance = value.instanceId; });
-      const client = createChatClient({ userId: alice.id, conversationId, after, apiUrl: "http://nginx", socket, request: clientRequest,
+      const client = createChatClient({ userId: alice.id, conversationId, after, generation, apiUrl: "http://nginx", socket, request: clientRequest, ...overrides,
         onMessages: (batch) => { for (const message of batch) { assert.equal(received.has(message.id), false, "one client lifecycle must emit a message only once"); received.set(message.id, message); } },
       });
       clients.push(client);
@@ -174,11 +176,37 @@ async function run() {
     await until(() => current.getState().status === "unauthenticated");
     assert.equal((await pool.query("SELECT id FROM message WHERE client_message_id = $1", [switched])).rowCount, 0, "an account switch must not send another user's queued envelope");
     assert.ok(current.getState().pending.some((row) => row.clientMessageId === switched));
-    console.log("Client sync integration passed: buffered catch-up, durable identical retries, gateway failover, gap-free ordered recovery and account-switch protection.");
+    await current.stop();
+    cookieOwner = alice;
+    current = createClient("8", { resumePending: false });
+    await current.start();
+    await until(() => current.getState().status === "connected");
+    await pool.query("UPDATE history SET generation = gen_random_uuid()");
+    await current.synchronize();
+    assert.equal(current.getState().status, "recovery-required", "quiet open clients must detect restored history");
+    assert.ok(current.getState().pending.some((row) => row.clientMessageId === switched));
+    await current.stop();
+    current = createClient("8", { resumePending: false });
+    await current.start();
+    await until(() => current.getState().status === "recovery-required");
+    await current.stop();
+    const bootstrap = await request(`${path}?recent=true&limit=50`, alice);
+    assert.equal(bootstrap.status, 200);
+    const fresh = await bootstrap.json();
+    generation = fresh.generation;
+    received.clear();
+    for (const row of fresh.messages) received.set(row.id, row);
+    current = createClient(fresh.headSequence, { resumePending: false });
+    await current.start();
+    await until(() => current.getState().status === "connected");
+    assert.ok(current.getState().pending.some((row) => row.clientMessageId === switched));
+    assert.equal((await pool.query("SELECT id FROM message WHERE client_message_id = $1", [switched])).rowCount, 0, "rebuilding history must not recreate queued or previously accepted messages");
+    console.log("Client sync integration passed: buffered catch-up, durable identical retries, gateway failover, gap-free ordered recovery and account-switch protection, generation invalidation and explicit bootstrap with preserved pending sends.");
   } finally {
     releaseHistory?.();
     await Promise.all(clients.map((client) => client.stop()));
     process.stdin.pause();
+    await pool.query("UPDATE history SET generation = $1", [originalGeneration]);
     const ids = actors.map((actor) => actor.id);
     await pool.query("DELETE FROM message WHERE sender_id = ANY($1::text[])", [ids]);
     await pool.query("DELETE FROM conversation WHERE direct_user_low_id = ANY($1::text[]) OR direct_user_high_id = ANY($1::text[])", [ids]);

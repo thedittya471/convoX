@@ -6,12 +6,19 @@ import { setTimeout as sleep } from "node:timers/promises";
 import "fake-indexeddb/auto";
 import { createChatClient } from "../src/lib/chat-client.ts";
 
+const testGeneration = randomUUID();
+
 class TestSocket extends EventEmitter {
   connected = false;
-  constructor(userId) { super(); this.userId = userId; }
+  constructor(userId) { super(); this.userId = userId; this.generation = testGeneration; }
+  emit(event, ...args) {
+    if (event === "realtime:ready") args[0] = { generation: this.generation, ...args[0] };
+    if (event === "message:created" && args[1] === undefined) args[1] = this.generation;
+    return super.emit(event, ...args);
+  }
   connect() {
     this.connected = true;
-    queueMicrotask(() => this.emit("realtime:ready", { instanceId: "test", userId: this.userId }));
+    queueMicrotask(() => this.emit("realtime:ready", { instanceId: "test", userId: this.userId, ...(this.generation ? { generation: this.generation } : {}) }));
     return this;
   }
   disconnect() { this.connected = false; this.emit("disconnect", "io client disconnect"); return this; }
@@ -57,13 +64,13 @@ function fixture() {
     }
     const after = BigInt(new URL(input).searchParams.get("after"));
     const page = rows.filter((row) => BigInt(row.sequence) > after).slice(0, 2);
-    const response = { messages: page, nextAfter: rows.some((row) => BigInt(row.sequence) > BigInt(page.at(-1)?.sequence ?? after)) ? page.at(-1).sequence : null };
+    const response = { ...(socket.generation ? { generation: socket.generation } : {}), messages: page, nextAfter: rows.some((row) => BigInt(row.sequence) > BigInt(page.at(-1)?.sequence ?? after)) ? page.at(-1).sequence : null };
     if (intercept) await intercept(response);
     return Response.json(response);
   }
 
   function client(overrides = {}) {
-    return createChatClient({ userId, conversationId, apiUrl: "http://chat.test", socket, request,
+    return createChatClient({ userId, conversationId, generation: socket.generation, apiUrl: "http://chat.test", socket, request,
       onMessages: (batch) => received.push(...batch), ...overrides,
     });
   }
@@ -191,7 +198,7 @@ test("authentication mismatch stops synchronization and sends", async () => {
 
 test("invalid history cannot advance the contiguous cursor", async () => {
   const setup = fixture();
-  const client = setup.client({ request: async () => Response.json({ messages: [setup.message(2)], nextAfter: null }) });
+  const client = setup.client({ request: async () => Response.json({ messages: [setup.message(2)], nextAfter: null, generation: setup.socket.generation }) });
   try {
     await client.start();
     await until(() => client.getState().status === "error");
@@ -217,11 +224,12 @@ test("stopping during a history request prevents late callbacks", async () => {
 
 test("sequence handling preserves precision beyond JavaScript's safe integer range", async () => {
   const setup = fixture();
-  const client = setup.client({ after: "9007199254740992" });
+  setup.socket.generation = randomUUID();
+  const client = setup.client({ after: "9007199254740992", generation: setup.socket.generation });
   try {
     await client.start();
     await until(() => client.getState().status === "connected");
-    setup.socket.emit("message:created", setup.message("9007199254740993"));
+    setup.socket.emit("message:created", setup.message("9007199254740993"), setup.socket.generation);
     assert.equal(client.getState().cursor, "9007199254740993");
     assert.equal(setup.received[0].sequence, "9007199254740993");
   } finally { await client.stop(); }
@@ -257,5 +265,93 @@ test("an unverified socket identity stops retries with verification guidance", a
     assert.equal(client.getState().status, "unauthenticated");
     assert.match(client.getState().error, /verify your email/i);
     await assert.rejects(() => client.send("must-not-send"));
+  } finally { await client.stop(); }
+});
+
+test("explicit history recovery errors halt retries and preserve pending identities", async () => {
+  for (const [status, code] of [[409, "CURSOR_AHEAD"], [410, "HISTORY_UNAVAILABLE"], [409, "HISTORY_RESET"]]) {
+    const setup = fixture();
+    const { savePendingMessage, loadPendingMessages } = await import("../src/lib/message-outbox.ts");
+    const pending = { userId: setup.userId, conversationId: setup.conversationId, clientMessageId: randomUUID(), encryptedPayload: "keep-this-pending", error: null };
+    await savePendingMessage(pending);
+    const client = setup.client({ request: async () => Response.json({ code, error: "Reload history." }, { status }) });
+    try {
+      await client.start();
+      await until(() => client.getState().status === "recovery-required");
+      await client.synchronize();
+      assert.equal(setup.socket.connected, false);
+      assert.equal((await loadPendingMessages(setup.userId, setup.conversationId))[0].clientMessageId, pending.clientMessageId);
+      assert.equal(setup.attempts.length, 0);
+    } finally { await client.stop(); }
+  }
+});
+
+test("an open client rejects a restored generation even with an unchanged numeric head", async () => {
+  const setup = fixture();
+  const generation = randomUUID();
+  setup.socket.connect = function () {
+    this.connected = true;
+    queueMicrotask(() => this.emit("realtime:ready", { userId: setup.userId, instanceId: "test", generation }));
+    return this;
+  };
+  const client = setup.client({ generation, after: "1", resumePending: false,
+    request: async () => Response.json({ messages: [], nextAfter: null, generation }) });
+  try {
+    await client.start();
+    await until(() => client.getState().status === "connected");
+    setup.socket.emit("message:created", setup.message(2), randomUUID());
+    assert.equal(client.getState().status, "recovery-required");
+    assert.deepEqual(setup.received, []);
+    assert.equal(client.getState().cursor, "1");
+  } finally { await client.stop(); }
+});
+
+test("unavailable local storage never starts live delivery or removes pending data", async () => {
+  const setup = fixture();
+  const storage = globalThis.indexedDB;
+  const client = setup.client();
+  try {
+    globalThis.indexedDB = undefined;
+    await assert.rejects(client.start());
+    assert.equal(setup.socket.connected, false);
+  } finally { globalThis.indexedDB = storage; await client.stop(); }
+});
+
+
+test("a resumed numeric checkpoint cannot adopt a new generation", () => {
+  const setup = fixture();
+  assert.throws(() => setup.client({ after: "1", generation: undefined }), /original history generation/);
+});
+
+
+test("a fresh client never resends an old-generation or unversioned pending entry", async () => {
+  const { savePendingMessage, loadPendingMessages } = await import("../src/lib/message-outbox.ts");
+  for (const oldGeneration of [randomUUID(), undefined]) {
+    const setup = fixture();
+    setup.socket.generation = randomUUID();
+    const pending = { userId: setup.userId, conversationId: setup.conversationId, clientMessageId: randomUUID(), encryptedPayload: "preserve-original-envelope", error: null, ...(oldGeneration ? { generation: oldGeneration } : {}) };
+    await savePendingMessage(pending);
+    const client = setup.client();
+    try {
+      await client.start();
+      await until(() => client.getState().status === "recovery-required");
+      assert.equal(setup.attempts.length, 0);
+      const [saved] = await loadPendingMessages(setup.userId, setup.conversationId);
+      assert.equal(saved.clientMessageId, pending.clientMessageId);
+      assert.equal(saved.encryptedPayload, pending.encryptedPayload);
+      assert.equal(saved.generation, oldGeneration);
+    } finally { await client.stop(); }
+  }
+});
+
+
+test("a first send cannot create an unversioned queue before the initial handshake", async () => {
+  const setup = fixture();
+  setup.socket.connect = function () { return this; };
+  const client = setup.client({ generation: undefined });
+  try {
+    await client.start();
+    await assert.rejects(client.send("keep draft"), /Wait for history/);
+    assert.equal(client.getState().pending.length, 0);
   } finally { await client.stop(); }
 });

@@ -1,10 +1,11 @@
-import { createMessageSchema, type CreateMessage } from "@convox/contracts";
+import { createMessageSchema, messageHistoryPageSchema, type CreateMessage } from "@convox/contracts";
 
 export type PendingMessage = CreateMessage & {
   queueId: number;
   userId: string;
   conversationId: string;
   error: string | null;
+  generation?: string;
 };
 
 async function transaction<Result>(mode: IDBTransactionMode, operation: (store: IDBObjectStore) => IDBRequest<Result>): Promise<Result> {
@@ -49,7 +50,8 @@ export async function loadPendingMessages(userId: string, conversationId: string
       throw new Error("The local message outbox is invalid. Its contents have not been deleted.");
     }
 
-    return { ...envelope, queueId: row.queueId, userId, conversationId, error: row.error };
+    return { ...envelope, queueId: row.queueId, userId, conversationId, error: row.error,
+      ...(row.generation === undefined ? {} : { generation: messageHistoryPageSchema.shape.generation.parse(row.generation) }) };
   });
 }
 

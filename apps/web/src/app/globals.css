@@ -453,3 +453,9 @@ input:disabled {
 @media (min-width: 768px) {
   .conversation-browser { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
 }
+
+.message-history { max-height: 28rem; overflow-y: auto; overflow-anchor: none; margin-block: 1rem; border: 1px solid var(--border); border-radius: .5rem; padding: 1rem; }
+.message-history ol { list-style: none; padding: 0; margin: 0; }
+.message-history li { padding-block: .75rem; border-bottom: 1px solid var(--border); }
+.message-sender { font-size: .8rem; }
+.message-content { white-space: pre-wrap; overflow-wrap: anywhere; }
