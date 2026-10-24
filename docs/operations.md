@@ -109,3 +109,13 @@ rollback does not reverse database migrations. Retired Matrix configuration is
 not part of the active PostgreSQL/Redis system: archive any retained Matrix
 volumes/secrets separately and do not delete them or OAuth/account tables during
 cleanup. The script never removes database volumes or modifies the source.
+
+### Deployment and rollback rehearsal
+
+[The staging rehearsal runbook](staging-rehearsal.md) orders clean deployment,
+migration, real HTTPS/session/proxy checks, continuity faults, compatible binary
+rollback, fenced database restoration and observation. It lists required owner,
+contact, secret/image/host/backup/alert inputs without inventing them. It is local
+preparation only: staging execution and operator ownership remain pending. The
+[release evidence matrix](release-evidence.md) distinguishes fresh CI checks from
+historical load measurements and unexecuted deployment gates.
