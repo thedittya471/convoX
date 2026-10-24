@@ -40,18 +40,19 @@ function Account() {
   }
 
   async function signOut() {
+    if (signingOut) return;
     setSigningOut(true);
     setSignOutError("");
     try {
       const result = await authClient.signOut();
       if (result.error) {
         setSignOutError("Could not sign out. Please try again.");
+        setSigningOut(false);
         return;
       }
       router.replace("/login");
     } catch {
       setSignOutError("Could not reach the server. Please try again.");
-    } finally {
       setSigningOut(false);
     }
   }
@@ -87,7 +88,7 @@ function Account() {
             </>
           )}
         </div>
-        {session.user.emailVerified && <Conversations key={session.user.id} userId={session.user.id} />}
+        {session.user.emailVerified && !signingOut && <Conversations key={`${session.user.id}:${session.session.id}`} userId={session.user.id} />}
         <UsernameForm key={session.user.id} username={session.user.username} />
         {verification === "invalid" && <p role="alert">This verification link expired or was already used. If your email is still unverified, request a new link.</p>}
         {verificationMessage && <p role="status">{verificationMessage}</p>}

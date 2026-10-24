@@ -449,3 +449,33 @@ test("a revoked session stops sending and retains its unconfirmed queue", async 
     await assert.rejects(client.retry(id), /authenticated/);
   } finally { await client.stop(); }
 });
+
+test("stopping one view leaves another view active and preserves both saved sends", async () => {
+  const setup = fixture();
+  setup.offline(true);
+  const first = setup.client();
+  const otherSocket = new TestSocket(setup.userId);
+  const secondReceived = [];
+  const second = setup.client({ socket: otherSocket, onMessages: (batch) => secondReceived.push(...batch) });
+  try {
+    await Promise.all([first.start(), second.start()]);
+    const ids = await Promise.all([first.send("first-view"), second.send("second-view")]);
+    await first.stop();
+    assert.equal(setup.socket.listenerCount("message:created"), 0);
+    assert.equal(setup.socket.listenerCount("realtime:ready"), 0);
+    assert.equal(setup.socket.connected, false);
+    setup.offline(false);
+    await second.synchronize();
+    await until(() => second.getState().pending.length === 0 && setup.rows.length === 2);
+    assert.deepEqual(new Set(setup.rows.map((row) => row.clientMessageId)), new Set(ids));
+    const late = setup.message(3);
+    setup.rows.push(late);
+    setup.socket.emit("message:created", late);
+    otherSocket.emit("message:created", late);
+    await until(() => second.getState().cursor === "3");
+    assert.deepEqual(setup.received, []);
+    assert.equal(secondReceived.at(-1).id, late.id);
+    await assert.rejects(first.send("stopped view"), /authenticated/);
+    assert.equal(first.getState().status, "stopped");
+  } finally { await Promise.all([first.stop(), second.stop()]); }
+});

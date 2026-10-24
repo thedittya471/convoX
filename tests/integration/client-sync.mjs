@@ -116,8 +116,8 @@ async function run() {
     function createClient(after = "0", overrides = {}) {
       const socket = io("http://nginx", { transports: ["websocket"], autoConnect: false, extraHeaders: { cookie: alice.cookie, origin }, reconnectionDelay: 250, reconnectionDelayMax: 1000, timeout: 2000 });
       socket.on("realtime:ready", (value) => { activeInstance = value.instanceId; });
-      const client = createChatClient({ userId: alice.id, conversationId, after, generation, apiUrl: "http://nginx", socket, request: clientRequest, ...overrides,
-        onMessages: (batch) => { for (const message of batch) { assert.equal(received.has(message.id), false, "one client lifecycle must emit a message only once"); received.set(message.id, message); } },
+      const client = createChatClient({ userId: alice.id, conversationId, after, generation, apiUrl: "http://nginx", socket, request: clientRequest,
+        onMessages: (batch) => { for (const message of batch) { assert.equal(received.has(message.id), false, "one client lifecycle must emit a message only once"); received.set(message.id, message); } }, ...overrides,
       });
       clients.push(client);
       return client;
@@ -171,6 +171,17 @@ async function run() {
     assert.deepEqual([...received.values()].map((row) => row.id), (await persisted.json()).messages.map((row) => row.id));
     assert.equal(received.size, 8);
 
+    const otherReceived = [];
+    const otherView = createClient("8", { onMessages: (batch) => otherReceived.push(...batch) });
+    await otherView.start();
+    await until(() => otherView.getState().status === "connected");
+    await current.stop();
+    const afterClosing = await sendFromBob("other-view-remains-active");
+    await until(() => otherView.getState().cursor === afterClosing.sequence);
+    assert.deepEqual(otherReceived.map((message) => message.id), [afterClosing.id]);
+    assert.equal(received.size, 8, "closing one view prevents late history from reaching it");
+    current = otherView;
+
     cookieOwner = bob;
     const switched = await current.send("opaque-account-switch-must-not-send");
     await until(() => current.getState().status === "unauthenticated");
@@ -178,7 +189,7 @@ async function run() {
     assert.ok(current.getState().pending.some((row) => row.clientMessageId === switched));
     await current.stop();
     cookieOwner = alice;
-    current = createClient("8", { resumePending: false });
+    current = createClient("9", { resumePending: false });
     await current.start();
     await until(() => current.getState().status === "connected");
     await pool.query("UPDATE history SET generation = gen_random_uuid()");
@@ -186,7 +197,7 @@ async function run() {
     assert.equal(current.getState().status, "recovery-required", "quiet open clients must detect restored history");
     assert.ok(current.getState().pending.some((row) => row.clientMessageId === switched));
     await current.stop();
-    current = createClient("8", { resumePending: false });
+    current = createClient("9", { resumePending: false });
     await current.start();
     await until(() => current.getState().status === "recovery-required");
     await current.stop();
@@ -201,7 +212,7 @@ async function run() {
     await until(() => current.getState().status === "connected");
     assert.ok(current.getState().pending.some((row) => row.clientMessageId === switched));
     assert.equal((await pool.query("SELECT id FROM message WHERE client_message_id = $1", [switched])).rowCount, 0, "rebuilding history must not recreate queued or previously accepted messages");
-    console.log("Client sync integration passed: buffered catch-up, durable identical retries, gateway failover, gap-free ordered recovery and account-switch protection, generation invalidation and explicit bootstrap with preserved pending sends.");
+    console.log("Client sync integration passed: buffered catch-up, durable identical retries, gateway failover, gap-free ordered recovery and account-switch protection, independent view cleanup, generation invalidation and explicit bootstrap with preserved pending sends.");
   } finally {
     releaseHistory?.();
     await Promise.all(clients.map((client) => client.stop()));

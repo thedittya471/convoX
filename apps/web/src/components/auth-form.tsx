@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
 import { usernameSchema } from "@convox/contracts";
+import { getGlobalBroadcastChannel } from "better-auth/client";
 import { authClient } from "@/lib/auth-client";
 
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
@@ -62,6 +63,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         }
         return;
       }
+      getGlobalBroadcastChannel().post({ event: "session", data: { trigger: "getSession" } });
       form.reset();
       router.replace("/");
     } catch {

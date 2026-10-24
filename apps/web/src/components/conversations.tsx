@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getGlobalBroadcastChannel } from "better-auth/client";
 import type { Conversation } from "@convox/contracts";
 import { Chat } from "./chat";
 import { StartConversation } from "./start-conversation";
@@ -26,6 +27,10 @@ export function Conversations({ userId }: { userId: string }) {
     setLoading(false);
     setBlocked(true);
   }, []);
+
+  useEffect(() => getGlobalBroadcastChannel().subscribe((message) => {
+    if (message.data?.trigger === "signout" || message.data?.trigger === "getSession") leaveChat();
+  }), [leaveChat]);
 
   const requestPage = useCallback((after: string | null, controller: AbortController) => {
     return loadConversations(userId, after, AbortSignal.any([controller.signal, AbortSignal.timeout(10000)])).then((page) => {
