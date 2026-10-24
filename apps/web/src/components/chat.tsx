@@ -5,6 +5,7 @@ import { createMessageSchema, type Message } from "@convox/contracts";
 import { createChatClient, type ChatState } from "@/lib/chat-client";
 import { HistoryError, loadHistory, mergeHistory, unconfirmedMessages } from "@/lib/message-history";
 
+import { ChatStatus } from "./chat-status";
 import { loadPendingMessages, type PendingMessage } from "@/lib/message-outbox";
 
 export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
@@ -12,6 +13,7 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
 }) {
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState("");
+  const [retrying, setRetrying] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [canSend, setCanSend] = useState(false);
   const [pending, setPending] = useState<PendingMessage[]>([]);
@@ -21,7 +23,7 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
   const [generation, setGeneration] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [status, setStatus] = useState("Loading history…");
+  const [status, setStatus] = useState<ChatState["status"] | "loading">("loading");
   const [reset, setReset] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -37,6 +39,7 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
     if (failure instanceof HistoryError && [404, 409, 410].includes(failure.status)) {
       void client.current?.stop();
       active.current?.abort();
+      setStatus(failure.status === 404 ? "unavailable" : "recovery-required");
       setCanSend(false);
       setMessages([]);
       setReset(failure.status !== 404);
@@ -69,6 +72,7 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
           onChange: (state: ChatState) => {
             if (controller.signal.aborted) return;
             setPending(state.pending);
+            setStatus(state.status);
             if (state.status === "unauthenticated") return onAuthRequired();
             if (["recovery-required", "unavailable"].includes(state.status)) {
               setCanSend(false);
@@ -79,7 +83,6 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
               controller.abort();
               void current?.stop();
             }
-            setStatus(state.status === "connected" ? "History is up to date." : state.status === "recovery-required" ? "History must be reloaded." : "Synchronizing history…");
             setError(state.error ?? "");
           },
         });
@@ -90,13 +93,14 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
         if (!queueMatches) setSendError("Pending messages from an earlier history are preserved. They need review before sending can resume.");
       } catch {
         if (controller.signal.aborted) return;
-        setStatus("Live updates are unavailable.");
+        setStatus("unavailable");
         setError("Local message storage is unavailable. Loaded history is shown; enable storage and reload to resume live updates. Saved pending sends have not been deleted.");
       }
     }).catch((failure: unknown) => {
       if (!controller.signal.aborted) {
         if (failure instanceof HistoryError && [401, 403].includes(failure.status)) onAuthRequired();
         else {
+          setStatus(failure instanceof HistoryError && [409, 410].includes(failure.status) ? "recovery-required" : "unavailable");
           setError(failure instanceof Error ? failure.message : "Could not load messages.");
           setReset(true);
           setUnavailable(failure instanceof HistoryError && failure.status === 404);
@@ -119,6 +123,7 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
     void client.current?.stop();
     browsingOlder.current = false;
     anchor.current = null;
+    setStatus("loading");
     setCanSend(false); setSendError("");
     setMessages([]); setError(""); setReset(false); setNewMessages(false); setLoading(true);
     setAttempt((value) => value + 1);
@@ -162,25 +167,41 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
     } finally { submitting.current = false; setSaving(false); }
   }
 
+  async function retryMessage(clientMessageId: string) {
+    if (!canSend || !client.current || submitting.current) return;
+    const current = client.current;
+    const controller = active.current;
+    submitting.current = true;
+    setRetrying(clientMessageId); setSendError("");
+    try { await current.retry(clientMessageId); }
+    catch {
+      if (!controller?.signal.aborted && current === client.current) setSendError("Could not retry. The original message remains saved on this device.");
+    } finally { submitting.current = false; setRetrying(null); }
+  }
+
   return <section aria-label={`Messages with ${peerName}`}>
-    <p role="status">{loading ? "Loading messages…" : status}</p>
-    {error && <p className="form-error" role="alert">{error}</p>}
-    {!unavailable && <button type="button" className="primary-button" disabled={loading || saving} onClick={reload}>{reset ? "Reload history" : newMessages ? "View new messages" : "Return to recent messages"}</button>}
+    <ChatStatus status={status} />
+    {loading && status !== "loading" && <p>Loading older messages…</p>}
+    {error && <p className="form-error">{error}</p>}
+    {!unavailable && <button type="button" className="primary-button" disabled={loading || saving || retrying !== null} onClick={reload}>{reset ? "Reload history" : newMessages ? "View new messages" : "Return to recent messages"}</button>}
     {!reset && !unavailable && <>
       <div className="message-history" ref={viewport} tabIndex={0} role="region" aria-label="Message history">
         {before && <button type="button" className="primary-button" disabled={loading} onClick={() => void loadOlder()}>Load older messages</button>}
         <ol>{messages.map((message) => <li key={message.id} data-message-id={message.id}>
           <p className="message-sender">{message.senderId === userId ? "You" : peerName} · <time dateTime={message.createdAt}>{new Date(message.createdAt).toLocaleString()}</time></p>
           <p className="message-content">{message.encryptedPayload}</p>
+          {message.senderId === userId && <p>Accepted by server</p>}
         </li>)}</ol>
         {!loading && messages.length === 0 && <p>No messages yet.</p>}
       </div>
-      <p>Up to 200 messages are shown at a time.</p>
+      <p>Up to 200 messages are shown at a time. Server acceptance does not confirm recipient delivery or reading.</p>
     </>}
-    <ul className="pending-messages" aria-label="Messages awaiting server confirmation">
+    <ul className="pending-messages" aria-label="Messages awaiting server confirmation" aria-live="polite" aria-relevant="additions text">
       {unconfirmedMessages(messages, pending).map((entry) => <li key={entry.clientMessageId}>
         <p className="message-content">{entry.encryptedPayload}</p>
-        <p>{entry.error ?? "Saved on this device. Awaiting server confirmation."}</p>
+        <p>{entry.error ? `Send failed: ${entry.error}` : "Pending — saved on this device; server acceptance is not confirmed."}</p>
+        {entry.error && <button className="primary-button" type="button" disabled={!canSend || saving || retrying !== null || entry.generation !== generation}
+          onClick={() => void retryMessage(entry.clientMessageId)}>{retrying === entry.clientMessageId ? "Retrying…" : "Retry this message"}</button>}
       </li>)}
     </ul>
     {!reset && !unavailable && <form className="message-composer" onSubmit={(event) => { event.preventDefault(); void sendDraft(); }}>
@@ -196,7 +217,7 @@ export function Chat({ userId, conversationId, peerName, onAuthRequired }: {
       <p id="message-help">Enter sends. Shift+Enter adds a new line. {[...draft].length}/8,192 characters.</p>
       <p id="message-send-error" role="alert" className="form-error">{sendError}</p>
       </div>
-      <button className="primary-button" type="submit" disabled={!canSend || saving || !draft.trim()}>{saving ? "Saving…" : "Send message"}</button>
+      <button className="primary-button" type="submit" disabled={!canSend || saving || retrying !== null || !draft.trim()}>{saving ? "Saving…" : "Send message"}</button>
     </form>}
   </section>;
 }

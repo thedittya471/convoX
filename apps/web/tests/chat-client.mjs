@@ -387,3 +387,65 @@ test("message payload validation preserves Unicode and enforces character and re
     assert.equal(client.getState().pending.length, 1);
   } finally { await client.stop(); }
 });
+
+test("429 and server failures preserve uncertain sends until the same entry is accepted", async () => {
+  for (const status of [429, 503]) {
+    const setup = fixture();
+    const client = setup.client();
+    try {
+      await client.start();
+      await until(() => client.getState().status === "connected");
+      setup.status(status);
+      const id = await client.send("uncertain-send");
+      await until(() => client.getState().status === "error");
+      const [pending] = client.getState().pending;
+      assert.equal(pending.clientMessageId, id);
+      assert.equal(pending.error, null, "a transient response must not label the send rejected");
+      setup.status(200);
+      await client.synchronize();
+      await until(() => client.getState().pending.length === 0);
+      assert.equal(setup.rows[0].clientMessageId, id);
+      assert.equal(setup.rows[0].encryptedPayload, pending.encryptedPayload);
+    } finally { await client.stop(); }
+  }
+});
+
+test("retrying a rejected send while disconnected preserves its queue identity and publishes pending feedback", async () => {
+  const setup = fixture();
+  const client = setup.client();
+  try {
+    await client.start();
+    await until(() => client.getState().status === "connected");
+    setup.status(409);
+    const id = await client.send("retry-the-original");
+    await until(() => client.getState().pending.some((row) => row.error));
+    const [original] = client.getState().pending;
+    setup.socket.disconnect();
+    await client.retry(id);
+    const [retry] = client.getState().pending;
+    assert.equal(retry.error, null);
+    assert.equal(retry.queueId, original.queueId);
+    assert.equal(retry.clientMessageId, original.clientMessageId);
+    assert.equal(retry.encryptedPayload, original.encryptedPayload);
+    setup.status(200);
+    setup.socket.connect();
+    await until(() => client.getState().pending.length === 0);
+    assert.equal(setup.rows[0].clientMessageId, id);
+  } finally { await client.stop(); }
+});
+
+test("a revoked session stops sending and retains its unconfirmed queue", async () => {
+  const setup = fixture();
+  const client = setup.client();
+  try {
+    await client.start();
+    await until(() => client.getState().status === "connected");
+    setup.status(401);
+    const id = await client.send("recover-after-sign-in");
+    await until(() => client.getState().status === "unauthenticated");
+    assert.equal(setup.socket.connected, false);
+    assert.equal(client.getState().pending[0].clientMessageId, id);
+    assert.equal(client.getState().pending[0].error, null);
+    await assert.rejects(client.retry(id), /authenticated/);
+  } finally { await client.stop(); }
+});

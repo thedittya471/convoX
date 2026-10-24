@@ -349,7 +349,11 @@ export function createChatClient(options: ChatOptions) {
     const rows = await loadPendingMessages(userId, conversationId);
     const entry = rows.find((row) => row.clientMessageId === clientMessageId);
     if (!entry) throw new Error("Pending message not found.");
-    await savePendingMessage({ ...entry, error: null });
+    if (stopped || unauthorized || halted) throw new Error("This conversation is no longer active.");
+    if (entry.generation !== generation) throw new Error("Review this message before retrying in a different history generation.");
+    const saved = await savePendingMessage({ ...entry, error: null });
+    pending = [...pending.filter((row) => row.queueId !== saved.queueId), saved];
+    notify();
     await flushPending();
   }
 

@@ -97,3 +97,13 @@ The installed Zod version measures string limits in Unicode code points. Compose
 Tests used disposable project `convox-task11` with fresh storage, existing dependency images, final compiled server/contracts/migrations, and final client/outbox sources copied into replicas. Existing development services, data and environment files were untouched. Only this project's containers/volume and temporary environment file were removed after checks.
 
 Browser keyboard/IME, visual layout, focus and interactive quota/draft flows were omitted by owner request; their UI behavior is implemented but not claimed browser-verified. Task 12's expanded connection/send recovery presentation remains separate. No production deployment or full restore rehearsal was performed.
+
+## Task 12 — Connection and send recovery feedback
+
+Task 11, the only dependency, is complete. The UI now displays distinct text for connecting, syncing, connected, reconnecting, unavailable, sign-in/verification and history-recovery states. Canonical outgoing messages say “Accepted by server” with an explicit delivery/reading distinction. Pending entries retain uncertainty during transient failures; permanent rejects keep their entry and offer an explicit retry. Retry reuses the queue/client ID and content, immediately publishes pending feedback even while disconnected, and rejects another history generation. Parent-level authentication feedback states the sign-in/verification requirement while retaining the original account's local queue.
+
+Connection announcements use a separate polite, atomic live region. Connecting/syncing and error/reconnecting share respective announcement groups; a 1.5-second debounce cancels brief transitions. Repeated transient errors are visible without repeated assertive alerts. Pending changes have a polite live region; user-action errors remain actionable alerts.
+
+`pnpm check`: PASS, build, types, lint and 43 unit tests (9 contracts, 34 web). This includes rendered status/live-region markup and announcement grouping, transient 429/503 recovery without false rejection, disconnected retry with unchanged queue/client IDs/content, and revoked-session queue preservation. Existing send, history, storage, generation and account-isolation checks also pass. No dependency, migration, server route or infrastructure was added.
+
+Browser/offline interaction and actual screen-reader announcement timing were omitted by owner request. Debouncing is implemented; script checks verify the grouping and live-region markup, not assistive-technology behavior. Broad Docker integration/deployment checks were not rerun for this frontend presentation and local retry-feedback change. Full launch qualification and Task 13 lifecycle browser checks remain separate.

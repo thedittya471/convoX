@@ -63,7 +63,7 @@ export function Conversations({ userId }: { userId: string }) {
     void requestPage(cursor, controller);
   }
 
-  if (blocked) return <p role="alert">Chat access is no longer available. <button className="primary-button" type="button" onClick={() => window.location.reload()}>Refresh your account</button> to sign in or verify your email.</p>;
+  if (blocked) return <p role="alert">Sign-in or email verification is required. Pending messages remain saved for the original account. <button className="primary-button" type="button" onClick={() => window.location.reload()}>Refresh your account</button> to sign in or verify your email.</p>;
 
   return (
     <section aria-label="Your conversations">
