@@ -1,6 +1,9 @@
 import { z } from "zod";
 
 const configSchema = z.object({
+  SOCKET_USER_LIMIT: z.coerce.number().int().min(1).max(10000).default(10),
+  SOCKET_IP_LIMIT: z.coerce.number().int().min(1).max(100000).default(100),
+  SOCKET_OUTBOUND_BYTES: z.coerce.number().int().min(16384).max(16777216).default(262144),
   CHAT_IP_PER_MINUTE: z.coerce.number().int().min(1).max(1000000).default(300),
   CHAT_SENDS_PER_MINUTE: z.coerce.number().int().min(1).max(1000000).default(120),
   CHAT_LOOKUPS_PER_MINUTE: z.coerce.number().int().min(1).max(1000000).default(60),

@@ -106,7 +106,7 @@ async function run() {
       active(first);
       await until(() => remaining() > 0, "typing restarts");
       const started = Date.now();
-      for (let i = 0; i < 100; i++) active(first);
+      for (let i = 0; i < 10; i++) active(first);
       await until(() => remaining() === 0, "inactivity expires despite throttled burst", 9000);
       assert.ok(Date.now() - started < 9000);
       active(first); active(second);

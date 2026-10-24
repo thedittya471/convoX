@@ -5,6 +5,8 @@ import { fromNodeHeaders } from "better-auth/node";
 import { and, eq, gt, inArray } from "drizzle-orm";
 import type { Message, RealtimeEvents, ActivityCommands } from "@convox/contracts";
 import { trackPresence } from "../services/presence.service.js";
+import { claimQuota } from "./rate-limit.js";
+import { reserveConnection, boundOutbound, socketIp } from "./socket-limits.js";
 import { auth } from "./auth.js";
 import { config } from "./config.js";
 import { publisher, subscriber } from "./redis.js";
@@ -30,7 +32,10 @@ export function createRealtimeServer(server: HttpServer): RealtimeServer {
     pingInterval: 2000,
     pingTimeout: 3000,
     cors: { origin, credentials: true },
-    allowRequest: (request, allow) => allow(null, request.headers.origin === origin && publisher.isReady && subscriber.isReady),
+    allowRequest: (request, allow) => {
+      if (request.headers.origin !== origin || !publisher.isReady || !subscriber.isReady) return allow(null, false);
+      void claimQuota("ip", socketIp(request), config.CHAT_IP_PER_MINUTE).then((quota) => allow(null, quota.allowed), () => allow(null, false));
+    },
   });
 
   io.use(async (socket, next) => {
@@ -44,6 +49,8 @@ export function createRealtimeServer(server: HttpServer): RealtimeServer {
 
       if (!identity.user.emailVerified) return next(Object.assign(new Error("Verify your email before using chat."), { data: { code: "EMAIL_NOT_VERIFIED" } }));
 
+      if (!await reserveConnection(socket, identity.user.id)) return next(Object.assign(new Error("Connection limit reached. Retry shortly."), { data: { code: "CONNECTION_LIMIT" } }));
+
       socket.data = { userId: identity.user.id, sessionId: identity.session.id };
       next();
 
@@ -54,6 +61,13 @@ export function createRealtimeServer(server: HttpServer): RealtimeServer {
 
   io.on("connection", async (socket) => {
 
+    boundOutbound(socket);
+    let eventWindow = Date.now(), events = 0;
+    socket.use((_packet, next) => {
+      if (Date.now() - eventWindow >= 1000) { eventWindow = Date.now(); events = 0; }
+      if (++events > 20) return socket.disconnect(true);
+      next();
+    });
     try {
       const [current] = await db.select().from(history);
       if (!current) throw new Error("History generation is unavailable");
