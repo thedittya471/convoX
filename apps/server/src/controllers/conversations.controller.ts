@@ -11,7 +11,9 @@ export async function createConversation(request: Request, response: Response) {
   try {
     const session = await getVerifiedSession(request, response, "Sign in to start a conversation.");
 
-    if (!session) return;
+    if (!session) {
+      return;
+    }
 
     if (request.get("X-Expected-User-Id") && request.get("X-Expected-User-Id") !== session.user.id) {
       return response.status(403).json({ error: "The signed-in account has changed." });
@@ -21,7 +23,9 @@ export async function createConversation(request: Request, response: Response) {
       return response.status(403).json({ error: "Invalid request origin." });
     }
 
-    if (!await enforceChatLimit(response, "open", session.user.id, config.CHAT_OPENS_PER_MINUTE)) return;
+    if (!await enforceChatLimit(response, "open", session.user.id, config.CHAT_OPENS_PER_MINUTE)) {
+      return;
+    }
 
     const parsed = createConversationSchema.safeParse(request.body);
 
@@ -48,13 +52,17 @@ export async function getConversations(request: Request, response: Response) {
   try {
     const session = await getVerifiedSession(request, response, "Sign in to view conversations.");
 
-    if (!session) return;
+    if (!session) {
+      return;
+    }
 
     if (request.get("X-Expected-User-Id") && request.get("X-Expected-User-Id") !== session.user.id) {
       return response.status(403).json({ error: "The signed-in account has changed." });
     }
 
-    if (!await enforceChatLimit(response, "read", session.user.id, config.CHAT_READS_PER_MINUTE)) return;
+    if (!await enforceChatLimit(response, "read", session.user.id, config.CHAT_READS_PER_MINUTE)) {
+      return;
+    }
 
     const parsed = conversationListQuerySchema.safeParse(request.query);
 

@@ -35,7 +35,9 @@ export async function enforceChatLimit(response: Response, scope: string, identi
   try {
     const quota = await claimQuota(scope, identity, limit);
 
-    if (quota.allowed) return true;
+    if (quota.allowed) {
+      return true;
+    }
     response.set("Retry-After", String(quota.retryAfter)).status(429).json({ error: "Too many requests. Retry after the indicated delay.", retryAfter: quota.retryAfter });
   } catch {
     metrics.databaseErrors++;
@@ -46,5 +48,7 @@ export async function enforceChatLimit(response: Response, scope: string, identi
 }
 
 export async function limitChatIp(request: Request, response: Response, next: NextFunction) {
-  if (await enforceChatLimit(response, "ip", request.ip ?? request.socket.remoteAddress ?? "unknown", config.CHAT_IP_PER_MINUTE)) next();
+  if (await enforceChatLimit(response, "ip", request.ip ?? request.socket.remoteAddress ?? "unknown", config.CHAT_IP_PER_MINUTE)) {
+    next();
+  }
 }

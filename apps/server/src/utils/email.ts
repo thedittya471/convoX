@@ -24,8 +24,12 @@ export function sendPasswordResetEmail(email: string, url: string) {
 }
 
 async function sendEmail(email: string, subject: string, text: string) {
-  if (!transport || !config.SMTP_FROM) throw new Error("Email delivery is not configured.");
+  if (!transport || !config.SMTP_FROM) {
+    throw new Error("Email delivery is not configured.");
+  }
   const result = await transport.sendMail({ from: config.SMTP_FROM, to: email, subject, text });
 
-  if (result.accepted.length !== 1) throw new Error("Email was not accepted.");
+  if (result.accepted.length !== 1) {
+    throw new Error("Email was not accepted.");
+  }
 }

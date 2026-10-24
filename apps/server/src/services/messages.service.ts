@@ -28,9 +28,13 @@ export async function createMessage(userId: string, conversationId: string, inpu
     if (expectedGeneration) {
       const [current] = await transaction.select().from(history).for("share");
 
-      if (!current) throw new Error("History generation is unavailable");
+      if (!current) {
+        throw new Error("History generation is unavailable");
+      }
 
-      if (current.generation !== expectedGeneration) return { code: "HISTORY_RESET" as const, error: "History changed. Reload history before sending." };
+      if (current.generation !== expectedGeneration) {
+        return { code: "HISTORY_RESET" as const, error: "History changed. Reload history before sending." };
+      }
     }
     const sequence = chat.lastMessageSequence + 1n;
     const [inserted] = await transaction.insert(message)
@@ -60,7 +64,9 @@ export async function createMessage(userId: string, conversationId: string, inpu
     return { conflict: false as const, created: true, message: serializeMessage(inserted) };
   });
 
-  if (result && "created" in result && result.created) metrics.accepted++;
+  if (result && "created" in result && result.created) {
+    metrics.accepted++;
+  }
   return result;
 }
 
@@ -70,14 +76,20 @@ export async function listMessages(userId: string, conversationId: string, query
   return db.transaction(async (transaction) => {
     const [chat] = await transaction.select({ head: conversation.lastMessageSequence })
       .from(conversation)
-      .where(and(eq(conversation.id, conversationId),
-        or(eq(conversation.directUserLowId, userId), eq(conversation.directUserHighId, userId))));
+      .where(and(
+        eq(conversation.id, conversationId),
+        or(eq(conversation.directUserLowId, userId), eq(conversation.directUserHighId, userId))
+      ));
 
-    if (!chat) return null;
+    if (!chat) {
+      return null;
+    }
 
     const [current] = await transaction.select().from(history);
 
-    if (!current) throw new Error("History generation is unavailable");
+    if (!current) {
+      throw new Error("History generation is unavailable");
+    }
 
     if ((query.generation && query.generation !== current.generation) ||
       (!query.generation && (query.before !== undefined || (query.after !== undefined && query.after !== "0")))) {
@@ -89,7 +101,9 @@ export async function listMessages(userId: string, conversationId: string, query
     const backwards = query.recent !== undefined || query.before !== undefined;
     const cursor = BigInt(query.before ?? query.after ?? "0");
 
-    if (cursor > chat.head) return { code: "CURSOR_AHEAD" as const, error: "The cursor exceeds the current history. Rebuild history." };
+    if (cursor > chat.head) {
+      return { code: "CURSOR_AHEAD" as const, error: "The cursor exceeds the current history. Rebuild history." };
+    }
     const unavailable = {
       code: "HISTORY_UNAVAILABLE" as const,
       error: "Required message history is unavailable. Rebuild history."
@@ -99,25 +113,45 @@ export async function listMessages(userId: string, conversationId: string, query
       const [boundary] = await transaction.select({ id: message.id }).from(message)
         .where(and(eq(message.conversationId, conversationId), eq(message.sequence, cursor)));
 
-      if (!boundary) return unavailable;
+      if (!boundary) {
+        return unavailable;
+      }
     }
 
-    const boundary = backwards ? (query.before === undefined ? chat.head + 1n : cursor) : cursor;
+    let boundary = cursor;
+    if (backwards && query.before === undefined) {
+      boundary = chat.head + 1n;
+    }
     const rows = await transaction.select().from(message)
-      .where(and(eq(message.conversationId, conversationId), lte(message.sequence, chat.head),
-        backwards ? lt(message.sequence, boundary) : gt(message.sequence, boundary)))
+      .where(and(
+        eq(message.conversationId, conversationId),
+        lte(message.sequence, chat.head),
+        backwards ? lt(message.sequence, boundary) : gt(message.sequence, boundary)
+      ))
       .orderBy(backwards ? desc(message.sequence) : asc(message.sequence))
       .limit(query.limit + 1);
     const available = backwards ? boundary - 1n : chat.head - boundary;
     const expectedCount = Number(available < BigInt(query.limit + 1) ? available : BigInt(query.limit + 1));
 
-    if (rows.length !== expectedCount || rows.some((row, index) =>
-      row.sequence !== (backwards ? boundary - BigInt(index + 1) : boundary + BigInt(index + 1)))) return unavailable;
+    if (rows.length !== expectedCount) {
+      return unavailable;
+    }
+
+    const hasGap = rows.some((row, index) => {
+      const offset = BigInt(index + 1);
+      const expectedSequence = backwards ? boundary - offset : boundary + offset;
+      return row.sequence !== expectedSequence;
+    });
+    if (hasGap) {
+      return unavailable;
+    }
 
     const page = rows.slice(0, query.limit);
     const more = rows.length > query.limit;
 
-    if (backwards) page.reverse();
+    if (backwards) {
+      page.reverse();
+    }
     return {
       messages: page.map(serializeMessage),
       nextAfter: !backwards && more ? page[page.length - 1].sequence.toString() : null,

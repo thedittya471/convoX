@@ -35,7 +35,9 @@ export const auth = betterAuth({
     sendResetPassword: async ({ user, token }) => {
       // Keep the response identical for missing accounts, throttled mail and SMTP failures.
       try {
-        if (!await claimEmailQuota(`reset:${user.id}`)) return;
+        if (!await claimEmailQuota(`reset:${user.id}`)) {
+          return;
+        }
         const link = new URL("/reset-password", publicOrigin);
         link.searchParams.set("token", token);
         await sendPasswordResetEmail(user.email, link.toString());
@@ -87,7 +89,9 @@ export const auth = betterAuth({
       if (context.path === "/send-verification-email") {
         const identity = await getSessionFromCtx(context);
         // Only authenticated owners can trigger delivery; anonymous requests are indistinguishable.
-        if (!identity) return context.json({ status: true });
+        if (!identity) {
+          return context.json({ status: true });
+        }
         const requestedEmail = context.body?.email;
 
         if (typeof requestedEmail !== "string" || identity.user.email.toLowerCase() !== requestedEmail.toLowerCase()) {
@@ -117,7 +121,9 @@ export const auth = betterAuth({
           gt(schema.verification.expiresAt, new Date()),
         )).returning({ id: schema.verification.id });
 
-        if (!consumed) throw context.redirect(`${publicOrigin}/?verification=invalid`);
+        if (!consumed) {
+          throw context.redirect(`${publicOrigin}/?verification=invalid`);
+        }
       }
     }),
   },

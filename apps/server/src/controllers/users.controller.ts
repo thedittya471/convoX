@@ -11,9 +11,13 @@ export async function lookupUser(request: Request, response: Response) {
   try {
     const session = await getVerifiedSession(request, response, "Sign in to find someone.");
 
-    if (!session) return;
+    if (!session) {
+      return;
+    }
 
-    if (!await enforceChatLimit(response, "lookup", session.user.id, config.CHAT_LOOKUPS_PER_MINUTE)) return;
+    if (!await enforceChatLimit(response, "lookup", session.user.id, config.CHAT_LOOKUPS_PER_MINUTE)) {
+      return;
+    }
 
     const parsed = usernameSchema.safeParse(request.query.username);
 

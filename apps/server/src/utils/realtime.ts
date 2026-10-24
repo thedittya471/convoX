@@ -34,13 +34,29 @@ export function createRealtimeServer(server: HttpServer): RealtimeServer {
     pingTimeout: 3000,
     cors: { origin, credentials: true },
     allowRequest: (request, allow) => {
-      if (request.headers.origin !== origin || !publisher.isReady || !subscriber.isReady) return allow(null, false);
-      void realtimeReady().then(async (ready) => ready && (await claimQuota("ip", socketIp(request), config.CHAT_IP_PER_MINUTE)).allowed).then((allowed) => allow(null, allowed), () => allow(null, false));
+      if (request.headers.origin !== origin || !publisher.isReady || !subscriber.isReady) {
+        return allow(null, false);
+      }
+      void realtimeReady()
+        .then(async (ready) => {
+          if (!ready) {
+            return false;
+          }
+
+          const quota = await claimQuota("ip", socketIp(request), config.CHAT_IP_PER_MINUTE);
+          return quota.allowed;
+        })
+        .then(
+          (allowed) => allow(null, allowed),
+          () => allow(null, false),
+        );
     },
   });
 
   io.engine.use(async (_request: IncomingMessage, response: ServerResponse, next: () => void) => {
-    if (await httpReady()) return next();
+    if (await httpReady()) {
+      return next();
+    }
     response.writeHead(503, { "Retry-After": "1", "X-Convox-Not-Accepted": "1" });
     response.end();
   });
@@ -52,9 +68,13 @@ export function createRealtimeServer(server: HttpServer): RealtimeServer {
         return next(Object.assign(new Error("Sign in to receive messages."), { data: { code: "UNAUTHENTICATED" } }));
       }
 
-      if (!identity.user.emailVerified) return next(Object.assign(new Error("Verify your email before using chat."), { data: { code: "EMAIL_NOT_VERIFIED" } }));
+      if (!identity.user.emailVerified) {
+        return next(Object.assign(new Error("Verify your email before using chat."), { data: { code: "EMAIL_NOT_VERIFIED" } }));
+      }
 
-      if (!await reserveConnection(socket, identity.user.id)) return next(Object.assign(new Error("Connection limit reached. Retry shortly."), { data: { code: "CONNECTION_LIMIT" } }));
+      if (!await reserveConnection(socket, identity.user.id)) {
+        return next(Object.assign(new Error("Connection limit reached. Retry shortly."), { data: { code: "CONNECTION_LIMIT" } }));
+      }
 
       socket.data = { userId: identity.user.id, sessionId: identity.session.id };
       next();
@@ -69,21 +89,26 @@ export function createRealtimeServer(server: HttpServer): RealtimeServer {
       metrics.activeSockets--;
     });
     boundOutbound(socket);
-    let eventWindow = Date.now(), events = 0;
+    let eventWindow = Date.now();
+    let events = 0;
     socket.use((_packet, next) => {
       if (Date.now() - eventWindow >= 1000) {
         eventWindow = Date.now();
         events = 0;
       }
 
-      if (++events > 20) return socket.disconnect(true);
+      if (++events > 20) {
+        return socket.disconnect(true);
+      }
       next();
     });
 
     try {
       const [current] = await db.select().from(history);
 
-      if (!current) throw new Error("History generation is unavailable");
+      if (!current) {
+        throw new Error("History generation is unavailable");
+      }
       await socket.join(`user:${socket.data.userId}`);
       trackPresence(socket);
       socket.emit("realtime:ready", { instanceId: config.INSTANCE_ID, userId: socket.data.userId, generation: current.generation });
@@ -119,11 +144,20 @@ async function deliverLocally(io: RealtimeServer, message: Message, participants
     return;
   }
 
-  const active = await db.select({ id: session.id }).from(session).innerJoin(user, eq(user.id, session.userId))
-    .where(and(inArray(session.id, [...new Set(sockets.map((socket) => socket.data.sessionId))]), gt(session.expiresAt, new Date()), eq(user.emailVerified, true)));
+  const sessionIds = [...new Set(sockets.map((socket) => socket.data.sessionId))];
+  const active = await db.select({ id: session.id })
+    .from(session)
+    .innerJoin(user, eq(user.id, session.userId))
+    .where(and(
+      inArray(session.id, sessionIds),
+      gt(session.expiresAt, new Date()),
+      eq(user.emailVerified, true),
+    ));
   const [current] = await db.select().from(history);
 
-  if (!current) throw new Error("History generation is unavailable");
+  if (!current) {
+    throw new Error("History generation is unavailable");
+  }
   const activeIds = new Set(active.map((row) => row.id));
 
   for (const socket of sockets) {

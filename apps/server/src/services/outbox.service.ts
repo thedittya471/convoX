@@ -28,7 +28,10 @@ export async function publishNextMessage(publish: PublishMessage) {
     metrics.publishAttempts++;
 
     try {
-      await publish(serializeMessage(pending.message), [pending.conversation.directUserLowId, pending.conversation.directUserHighId]);
+      await publish(serializeMessage(pending.message), [
+        pending.conversation.directUserLowId,
+        pending.conversation.directUserHighId,
+      ]);
     }
     catch (error) {
       metrics.publishErrors++;
@@ -47,7 +50,9 @@ export function startOutboxPublisher(publish: PublishMessage) {
   const running = (async () => {
     while (!stopped) {
       try {
-        if (retrying) metrics.publisherRetries++;
+        if (retrying) {
+          metrics.publisherRetries++;
+        }
         retrying = false;
 
         if (!await publishNextMessage(publish)) {

@@ -11,7 +11,9 @@ export async function sendMessage(request: Request, response: Response) {
   try {
     const session = await getVerifiedSession(request, response, "Sign in to send messages.");
 
-    if (!session) return;
+    if (!session) {
+      return;
+    }
 
     if (request.get("X-Expected-User-Id") && request.get("X-Expected-User-Id") !== session.user.id) {
       return response.status(403).json({ error: "The signed-in account has changed." });
@@ -21,7 +23,9 @@ export async function sendMessage(request: Request, response: Response) {
       return response.status(403).json({ error: "Invalid request origin." });
     }
 
-    if (!await enforceChatLimit(response, "send", session.user.id, config.CHAT_SENDS_PER_MINUTE)) return;
+    if (!await enforceChatLimit(response, "send", session.user.id, config.CHAT_SENDS_PER_MINUTE)) {
+      return;
+    }
 
     const id = conversationSchema.shape.id.safeParse(request.params.id);
     const parsed = createMessageSchema.safeParse(request.body);
@@ -36,7 +40,9 @@ export async function sendMessage(request: Request, response: Response) {
       return response.status(404).json({ error: "Conversation not found." });
     }
 
-    if ("code" in result) return response.status(409).json(result);
+    if ("code" in result) {
+      return response.status(409).json(result);
+    }
 
     if (result.conflict) {
       return response.status(409).json({ error: "This client message ID was already used for a different message." });
@@ -59,13 +65,17 @@ export async function getMessages(request: Request, response: Response) {
   try {
     const session = await getVerifiedSession(request, response, "Sign in to view messages.");
 
-    if (!session) return;
+    if (!session) {
+      return;
+    }
 
     if (request.get("X-Expected-User-Id") && request.get("X-Expected-User-Id") !== session.user.id) {
       return response.status(403).json({ error: "The signed-in account has changed." });
     }
 
-    if (!await enforceChatLimit(response, "read", session.user.id, config.CHAT_READS_PER_MINUTE)) return;
+    if (!await enforceChatLimit(response, "read", session.user.id, config.CHAT_READS_PER_MINUTE)) {
+      return;
+    }
 
     const id = conversationSchema.shape.id.safeParse(request.params.id);
     const parsed = messageListQuerySchema.safeParse(request.query);

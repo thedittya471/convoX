@@ -19,12 +19,16 @@ export function observeRouting(seconds: number) {
   routing.count++;
   routing.sum += seconds;
   buckets.forEach((bound, index) => {
-    if (seconds <= bound) routing.buckets[index]++;
+    if (seconds <= bound) {
+      routing.buckets[index]++;
+    }
   });
 }
 
 export function metricsAuthorized(header?: string) {
-  if (!config.METRICS_TOKEN) return false;
+  if (!config.METRICS_TOKEN) {
+    return false;
+  }
   const provided = Buffer.from(header ?? "");
   const expected = Buffer.from(`Bearer ${config.METRICS_TOKEN}`);
   return provided.length === expected.length && timingSafeEqual(provided, expected);
